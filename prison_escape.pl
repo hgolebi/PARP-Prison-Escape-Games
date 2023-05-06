@@ -3,6 +3,7 @@
 :- dynamic at/1, there_is/2, holding/1.
 :- retractall(at(_)), retractall(there_is(_,_)), holding(_).
 
+
 /* Map definition */
 borders(cell1, hallway).
 borders(cell2, hallway).
@@ -28,7 +29,7 @@ there_is(toilet, cell2).
 there_is(desk, guard_room).
 /* WYKONCZENIE POKOI DO DOKONCZENIA */
 
-/* Items locations definition */
+/* Items locations (in objects) definition */
 there_is(poop, toilet).
 there_is(coin, toilet).
 
@@ -68,7 +69,7 @@ go(Destination) :-
     !, look.
 
 go(_) :-
-    write("You can,t go there!").
+    write("You can't go there!").
 
 /* These rule(s) tell what you can find in object*/
 
@@ -105,16 +106,52 @@ there_is(hammer, bed).
 empty(Object) :- 
     \+ there_is(_, Object).
 
+/* These rules describe how to pick up an object. */
+
+take(X) :-
+        holding(X),
+        write("You're already holding it!"),
+        !, nl.
+
+take(X) :-
+        i_am_at(Place),
+        at(X, Place),
+        retract(at(X, Place)),
+        assert(holding(X)),
+        write("OK."),
+        !, nl.
+
+take(_) :-
+        write("I don't see it here."),
+        nl.
+
+
+/* These rules describe how to put down an object. */
+
+drop(X) :-
+        holding(X),
+        i_am_at(Place),
+        retract(holding(X)),
+        assert(at(X, Place)),
+        write('OK.'),
+        !, nl.
+
+drop(_) :-
+        write("You aren't holding it!"),
+        nl.
 
 commands :-
     nl,
         write('Enter commands using standard Prolog syntax.'), nl,
         write('Available commands are:'), nl,
-        write('start.             -- to start the game.'), nl,
-        write('go(Destination)    -- to go to selected destination.'), nl,
-        write('look.              -- to look around you again.'), nl,
-        write('commands.          -- to see this message again.'), nl,
-        write('halt.              -- to end the game and quit.'), nl,
+        write('start.                -- to start the game.'), nl,
+        write('go(Destination).      -- to go to selected destination.'), nl,
+        write('look.                 -- to look around you again.'), nl,
+        write('investigate(Object)   -- to see if there is any item in object'), nl,
+        write('take(Item).           -- to pick up an item.'), nl,
+        write('drop(Item).           -- to put down an item.'), nl,
+        write('commands.             -- to see this message again.'), nl,
+        write('halt.                 -- to end the game and quit.'), nl,
         nl.
 
 start :-
