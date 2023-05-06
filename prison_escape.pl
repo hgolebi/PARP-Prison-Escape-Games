@@ -1,7 +1,7 @@
 /* Andrew Tate Prison Escape, by Hubert Gołębiowski and Jakub Rozkosz. */
 
-:- dynamic at/1, there_is/2, holding/1.
-:- retractall(at(_)), retractall(there_is(_,_)), holding(_).
+:- dynamic at/1, there_is/2, holding/1, expected_item/2, cigarettes/1.
+:- retractall(at(_)), retractall(there_is(_,_)), holding(_), retractall(expected_item(_,_)), retractall(cigarettes(_)).
 
 
 /* Map definition */
@@ -27,13 +27,26 @@ there_is(your_bed, cell2).
 there_is(old_mans_bed, cell2).
 there_is(toilet, cell2).
 there_is(desk, guard_room).
+
+/* People in rooms definition */
+there_is(old_man, cell2).
+there_is(gym_guy, gym).
+there_is(guard, guard_room).
+there_is(sleeping_guy, cell1).
+there_is(chef, kitchen).
+there_is(showering_prisoner, shower_room).
 /* WYKONCZENIE POKOI DO DOKONCZENIA */
 
 /* Items locations (in objects) definition */
 there_is(poop, toilet).
 there_is(coin, toilet).
+there_is(cigarettes, your_bed).
 
+/* Starting in cell2 */
 at(cell2).
+
+/* Initialize the number of cigarettes */
+cigarettes(0).
 
 /* These rule(s) tell what is going on around you*/
 
@@ -109,22 +122,32 @@ empty(Object) :-
 /* These rules describe how to pick up an object. */
 
 take(Item) :-
-        holding(Item),
-        write("You're already holding it!"),
-        !, nl.
+    holding(Item),
+    write("You're already holding it!"),
+    !, nl.
+
+take(cigarette) :-
+    at(Place),
+    there_is(Object, Place),
+    there_is(cigarette, Object),
+    retract(there_is(cigarette, Object)),
+    assert(holding(cigarette)),
+    increase_cigarettes(1),
+    write("OK."),
+    !, nl.
 
 take(Item) :-
-        at(Place),
-        at(Object, Place),
-        at(Item, Object),
-        retract(at(Item, Object)),
-        assert(holding(Item)),
-        write("OK."),
-        !, nl.
+    at(Place),
+    there_is(Object, Place),
+    there_is(Item, Object),
+    retract(there_is(Item, Object)),
+    assert(holding(Item)),
+    write("OK."),
+    !, nl.
 
 take(_) :-
-        write("I don't see it here."),
-        nl.
+    write("I don't see it here."),
+    nl.
 
 
 /* These rules describe how to put down an object. */
@@ -132,15 +155,90 @@ take(_) :-
 drop(Item) :-
         holding(Item),
         at(Place),
-        at(Object, Place),
+        there_is(Object, Place),
         retract(holding(Item)),
-        assert(at(Item, Object)),
+        assert(there_is(Item, Object)),
         write('OK.'),
         !, nl.
 
 drop(_) :-
         write("You aren't holding it!"),
         nl.
+
+
+/* These rules describe how to talk to a person. */
+
+talk(Person) :-
+    at(Place),
+    there_is(Person, Place),
+    dialogue(Person),
+    !, nl.
+
+talk(Person) :-
+    nl, write("There is no one named "), write(Person), write(" here."), nl.
+
+dialogue(old_man) :-
+    nl, write("You: Psst... I was thinking about escape. Are you in?"), nl,
+    write("Old Man: Escape, huh? It won't be easy. I've been here for years and I'm too old for this."), nl,
+    write("You: Damn... But you probably know this prison quite well. Do you have any advice?"), nl,
+    write("Old Man: Yes, but it will cost. Please bring me 5 cigarettes and we will talk..."), nl,
+    assert(expected_item(old_man, cigarettes)), nl.
+
+/* trzeba jakos zrobic, ze te dialogi sie zmieniaja po wykonaniu questow - 
+wiec chyba dodac nowe dialogi z old manem, tylko dodac na poczatku sprawdzenie 
+czy wykonal poprzedni quest/jest na odpowiednim poziomie gry */
+
+/* DODAC ROZMOWY Z INNYMI POSTACIAMI */
+
+/* These rules describe how to give an item to a person */
+
+give(Item, Person) :-
+    at(Place),
+    there_is(Person, Place),
+    holding(Item),
+    expected_item(Person, ExpectedItem),
+    Item = ExpectedItem,
+    give_item(Item, Person).
+
+give(Item, Person) :-
+    at(Place),
+    there_is(Person, Place),
+    holding(Item),
+    expected_item(Person, ExpectedItem),
+    Item \= ExpectedItem,
+    write(Person), write(" doesn't want that item."), nl.
+
+give(Item, Person) :-
+    nl, write("There is no one named "), write(Person), write(" here."), nl.
+
+give_item(Item, old_man) :-
+    Item = cigarettes,
+    cigarettes(Count),
+    Count >= 5,
+    NewCount is Count - 5,
+    retract(holding(Item)),
+    assert(cigarettes(NewCount)),
+    write("Old Man: Ah, you've brought the cigarettes. Good."), nl,
+    write("You hand the cigarettes to the Old Man."), nl.
+
+give_item(Item, old_man) :-
+    Item = cigarettes,
+    write("Old Man: You don't have enough cigarettes."), nl.
+
+give_item(_, _) :-
+    nl, write("This person doesn't want that item."), nl.
+
+/* DODAC WRĘCZANIE PRZEDMIOTÓW INNYM POSTACIOM */
+
+
+/* This rule describes how the number of picked up cigarettes increases */
+
+increase_cigarettes(N) :-
+    retract(cigarettes(Count)),
+    NewCount is Count + N,
+    assert(cigarettes(NewCount)).
+
+
 
 commands :-
     nl,
@@ -152,6 +250,8 @@ commands :-
         write('investigate(Object)   -- to see if there is any item in object'), nl,
         write('take(Item).           -- to pick up an item.'), nl,
         write('drop(Item).           -- to put down an item.'), nl,
+        write('give(Item, Person).   -- to give a person the item they wanted'), nl,
+        write('talk(Person).         -- to talk to a person'), nl,
         write('commands.             -- to see this message again.'), nl,
         write('halt.                 -- to end the game and quit.'), nl,
         nl.
