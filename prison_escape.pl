@@ -108,16 +108,17 @@ empty(Object) :-
 
 /* These rules describe how to pick up an object. */
 
-take(X) :-
-        holding(X),
+take(Item) :-
+        holding(Item),
         write("You're already holding it!"),
         !, nl.
 
-take(X) :-
-        i_am_at(Place),
-        at(X, Place),
-        retract(at(X, Place)),
-        assert(holding(X)),
+take(Item) :-
+        at(Place),
+        at(Object, Place),
+        at(Item, Object),
+        retract(at(Item, Object)),
+        assert(holding(Item)),
         write("OK."),
         !, nl.
 
@@ -128,11 +129,12 @@ take(_) :-
 
 /* These rules describe how to put down an object. */
 
-drop(X) :-
-        holding(X),
-        i_am_at(Place),
-        retract(holding(X)),
-        assert(at(X, Place)),
+drop(Item) :-
+        holding(Item),
+        at(Place),
+        at(Object, Place),
+        retract(holding(Item)),
+        assert(at(Item, Object)),
         write('OK.'),
         !, nl.
 
