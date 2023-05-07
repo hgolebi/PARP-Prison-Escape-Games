@@ -18,21 +18,73 @@ borders(guard_room, shower_room).
 borders(guard_room, gym).
 borders(kitchen, guard_room).
 borders(shower_room, guard_room).
-borders(gym, guard_room).   
-/* MAPA DO DOKONCZENIA */
+borders(gym, guard_room).
+borders(ventilation, hallway).
+borders(ventilation, shed).
+borders(shed, outside).
+
 
 
 /* Objects in rooms definition */
+there_is(occupied_bed, cell1).
+there_is(small_toilet, cell1).
+there_is(teapot, cell1).
+there_is(occupied_bed2, cell1).
+there_is(table, cell2).
 there_is(your_bed, cell2).
 there_is(old_mans_bed, cell2).
 there_is(toilet, cell2).
+there_is(bunk_bed, cell3).
+there_is(bed_cabinet, cell3).
+there_is(shelf, cell3).
+there_is(ventilation_grid, hallway).
 there_is(desk, guard_room).
+there_is(tv, guard_room).
+there_is(coat, guard_room).
+there_is(chair, guard_room).
+there_is(oven, kitchen).
+there_is(chair, kitchen).
+there_is(corner, kitchen).
+there_is(fridge, kitchen).
+there_is(sink, kitchen).
+there_is(shower, shower_room).
+there_is(shower2, shower_room).
+there_is(shower3, shower_room).
+there_is(shower4, shower_room).
+there_is(cabinet, shower_room).
+there_is(treadmill, gym).
+there_is(treadmill2, gym).
+there_is(bench, gym).
+there_is(fuse_box, shed).
+there_is(pole1, outside).
+there_is(pole2, outside).
+there_is(pole3, outside).
+there_is(pole4, outside).
+there_is(pole5, outside).
+there_is(pole6, outside).
+there_is(pole7, outside).
+there_is(pole8, outside).
+there_is(pole9, outside).
+there_is(pole10, outside).
+there_is(pole11, outside).
+there_is(pole12, outside).
+there_is(pole13, outside).
+there_is(pole14, outside).
+there_is(pole15, outside).
+there_is(pole16, outside).
+there_is(pole17, outside).
+there_is(pole18, outside).
+there_is(pole19, outside).
+there_is(pole20, outside).
+there_is(pole21, outside).
+
 
 /* People in rooms definition */
 there_is(old_man, cell2).
 there_is(gym_guy, gym).
 there_is(guard, guard_room).
 there_is(sleeping_guy, cell1).
+there_is(sleeping_guy2, cell1).
 there_is(chef, kitchen).
 there_is(showering_prisoner, shower_room).
 /* WYKONCZENIE POKOI DO DOKONCZENIA */
@@ -40,7 +92,20 @@ there_is(showering_prisoner, shower_room).
 /* Items locations (in objects) definition */
 there_is(poop, toilet).
 there_is(coin, toilet).
-there_is(cigarettes, your_bed).
+there_is(cigarette, your_bed).
+there_is(cigarette, corner).
+there_is(cigarette, bed_cabinet).
+there_is(cigarette, sleeping_guy).
+there_is(cigarette, occupied_bed2).
+there_is(cigarette, coat).
+there_is(cigarette, desk).
+there_is(cigarette, fridge).
+there_is(cigarette, treadmill).
+there_is(cigarette, cabinet).
+there_is(cigarette, bench).
+there_is(playboy_magazine, shelf).
+there_is(flashligth, desk).
+there_is(towel, bench).
 
 /* Starting in cell2 */
 at(cell2).
