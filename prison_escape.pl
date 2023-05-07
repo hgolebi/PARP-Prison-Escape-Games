@@ -121,7 +121,8 @@ look :-
     nl, write("You can see: "), nl,
     list_objects(Place),
     nl, write("You can go to:"), nl,
-    available_destinations(Place), nl.
+    available_destinations(Place), nl,
+    print_cigarettes, nl.
 
 list_objects(Place) :-
     there_is(Object, Place),
@@ -136,6 +137,11 @@ available_destinations(Place) :-
     fail.
 
 available_destinations(_).
+
+print_cigarettes :-
+    cigarettes(Count),
+    write("You currently have "), write(Count), write(" cigarettes."), nl.
+
 
 /* These rule(s) tell(s) how to move to different locations*/
 
