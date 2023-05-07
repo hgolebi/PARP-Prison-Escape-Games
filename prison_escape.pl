@@ -1,7 +1,7 @@
 /* Andrew Tate Prison Escape, by Hubert Gołębiowski and Jakub Rozkosz. */
 
-:- dynamic at/1, there_is/2, holding/1, expected_item/2, cigarettes/1.
-:- retractall(at(_)), retractall(there_is(_,_)), holding(_), retractall(expected_item(_,_)), retractall(cigarettes(_)).
+:- dynamic at/1, there_is/2, holding/1, quest_done/2, cigarettes/1.
+:- retractall(at(_)), retractall(there_is(_,_)), holding(_), retractall(cigarettes(_)), retractall(quest_done(_,_)).
 
 
 /* Map definition */
@@ -178,11 +178,26 @@ talk(Person) :-
     nl, write("There is no one named "), write(Person), write(" here."), nl.
 
 dialogue(old_man) :-
-    nl, write("You: Psst... I was thinking about escape. Are you in?"), nl,
+    (\+ quest_done(quest1, old_man)),
+    write("You: Psst... I was thinking about escape. Are you in?"), nl,
     write("Old Man: Escape, huh? It won't be easy. I've been here for years and I'm too old for this."), nl,
     write("You: Damn... But you probably know this prison quite well. Do you have any advice?"), nl,
-    write("Old Man: Yes, but it will cost. Please bring me 5 cigarettes and we will talk..."), nl,
-    assert(expected_item(old_man, cigarettes)), nl.
+    write("Old Man: Yes, but it will cost. Please bring me 5 cigarettes and we will talk..."), nl.
+
+dialogue(old_man) :-
+    quest_done(quest1, old_man),
+    (\+ quest_done(quest2, old_man)),
+    write("You: Okey, could you give me some advice now?"), nl,
+    write("Old Man: Alright. There is a hole in the wall by the 16th lampost on a prison yard."), nl,
+    write("You: But wait, the lights are on, everything will be visible."), nl,
+    write("Old Man: I don't give free information. Bring 5 more cigarettes."), nl.
+
+dialogue(old_man) :-
+    quest_done(quest2, old_man), nl,
+    write("You: What about the light?"), nl,
+    write("Old Man: You can break the ventilation hole in the hallway and get into the room with fuses, where you turn off the light."), nl,
+    write("You: Holy Chicken Trolley,  that's my opportunity!!"), nl.
+
 
 /* trzeba jakos zrobic, ze te dialogi sie zmieniaja po wykonaniu questow - 
 wiec chyba dodac nowe dialogi z old manem, tylko dodac na poczatku sprawdzenie 
@@ -192,40 +207,40 @@ czy wykonal poprzedni quest/jest na odpowiednim poziomie gry */
 
 /* These rules describe how to give an item to a person */
 
-give(Item, Person) :-
+give(Item, old_man) :-
     at(Place),
-    there_is(Person, Place),
+    there_is(old_man, Place),
     holding(Item),
-    expected_item(Person, ExpectedItem),
-    Item = ExpectedItem,
-    give_item(Item, Person).
-
-give(Item, Person) :-
-    at(Place),
-    there_is(Person, Place),
-    holding(Item),
-    expected_item(Person, ExpectedItem),
-    Item \= ExpectedItem,
-    write(Person), write(" doesn't want that item."), nl.
-
-give(Item, Person) :-
-    nl, write("There is no one named "), write(Person), write(" here."), nl.
-
-give_item(Item, old_man) :-
     Item = cigarettes,
     cigarettes(Count),
     Count >= 5,
     NewCount is Count - 5,
     retract(holding(Item)),
     assert(cigarettes(NewCount)),
+    (   (\+ quest_done(quest1, old_man))
+    ->  assert(quest_done(quest1, old_man))
+    ;   assert(quest_done(quest2, old_man))
+    ),
     write("Old Man: Ah, you've brought the cigarettes. Good."), nl,
     write("You hand the cigarettes to the Old Man."), nl.
 
-give_item(Item, old_man) :-
+give(Item, old_man) :-
+    at(Place),
+    there_is(old_man, Place),
+    holding(Item),
     Item = cigarettes,
+    cigarettes(Count),
+    Count < 5,
     write("Old Man: You don't have enough cigarettes."), nl.
 
-give_item(_, _) :-
+give(Item, old_man) :-
+    at(Place),
+    there_is(old_man, Place),
+    holding(Item),
+    Item \= cigarettes,
+    write("Old Man: I don't want that item."), nl.
+
+give(_, _) :-
     nl, write("This person doesn't want that item."), nl.
 
 /* DODAC WRĘCZANIE PRZEDMIOTÓW INNYM POSTACIOM */
