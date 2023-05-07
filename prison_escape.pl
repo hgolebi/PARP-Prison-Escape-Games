@@ -218,17 +218,17 @@ take(_) :-
 /* These rules describe how to put down an object. */
 
 drop(Item) :-
-        holding(Item),
-        at(Place),
-        there_is(Object, Place),
-        retract(holding(Item)),
-        assert(there_is(Item, Object)),
-        write('OK.'),
-        !, nl.
+    holding(Item),
+    at(Place),
+    there_is(Object, Place),
+    retract(holding(Item)),
+    assert(there_is(Item, Object)),
+    write('OK.'),
+    !, nl.
 
 drop(_) :-
-        write("You aren't holding it!"),
-        nl.
+    write("You aren't holding it!"),
+    nl.
 
 
 /* These rules describe how to talk to a person. */
@@ -263,12 +263,37 @@ dialogue(old_man) :-
     write("Old Man: You can break the ventilation hole in the hallway and get into the room with fuses, where you turn off the light."), nl,
     write("You: Holy Chicken Trolley,  that's my opportunity!!"), nl.
 
+dialogue(gym_guy) :-
+    (\+ quest_done(meal_quest, gym_guy)),
+    write("You see a strong guy that exhausted after his training."), nl,
+    write("You: Hey! I have a case. Could I do something for you in return for a small favor?"), nl,
+    write("Gym Guy: You little man, what would you need help for?"), nl,
+    write("You: To break the ventilation hole."), nl,
+    write("Gym Guy: It's a piece of cake for me. Bring me great meal casue I need to refill my carbs. Then I'll do the job."), nl.
 
-/* trzeba jakos zrobic, ze te dialogi sie zmieniaja po wykonaniu questow - 
-wiec chyba dodac nowe dialogi z old manem, tylko dodac na poczatku sprawdzenie 
-czy wykonal poprzedni quest/jest na odpowiednim poziomie gry */
+dialogue(gym_guy) :-
+    quest_done(meal_quest, gym_guy),
+    write("You: So, will you help me with yout muscles?"), nl,
+    write("Gym Guy: Yeah, the meal was great. Take me to the place."), nl,
+    write("You and the Gym Guy went to the ventilation hole and broke it. Now you're back at the gym."), nl,
+    write("You: There is just one more thing... Could I borrow your towel? Just for some time."), nl,
+    write("Gym Guy: You lucky bastard, be thankful that I am happy after the workout... Here you have it, up to 2h it must be returned."), nl,
+    write("Gym Guy handed you a towel."), nl,
+    assert(holding(towel)).
 
-/* DODAC ROZMOWY Z INNYMI POSTACIAMI */
+dialogue(chef) :-
+    (\+ quest_done(coffee_quest, chef)),
+    write("You: Hi! I've heard that you're the best chef in here. Could you make me a signature meal?"), nl,
+    write("Chef: Nice words won't be enough. I'am actually pretty tired, if you could bring me some coffee then I'll cook something."), nl,
+    write("You: Not a problem, I'll be in a moment."), nl.
+
+dialogue(chef) :-
+    quest_done(coffee_quest, chef),
+    write("You: Now you're quite caffenaited, aren't you?"), nl,
+    write("Chef: Yeah, thanks. I'll cook something quickly."), nl,
+    write("After few minutes chef hands you a hot meal."), nl,
+    write("You: Thanks a lot, bye."), nl.
+
 
 /* These rules describe how to give an item to a person */
 
@@ -305,10 +330,54 @@ give(Item, old_man) :-
     Item \= cigarettes,
     write("Old Man: I don't want that item."), nl.
 
+give(Item, gym_guy) :-
+    at(Place),
+    there_is(gym_guy, Place),
+    holding(Item),
+    Item = great_meal,
+    retract(holding(Item)),
+    assert(quest_done(meal_quest, gym_guy)),
+    write("Gym Guy: Just on time, give me that."), nl,
+    write("You hand the meal to the Gym Guy."), nl.
+
+give(Item, gym_guy) :-
+    at(Place),
+    there_is(gym_guy, Place),
+    holding(Item),
+    Item \= great_meal,
+    write("Gym Guy: I don't want that item."), nl.
+
+give(Item, gym_guy) :-
+    at(Place),
+    there_is(gym_guy, Place),
+    \+ holding(Item),
+    write("Gym Guy: You don't have the meal."), nl.
+
+give(Item, chef) :-
+    at(Place),
+    there_is(chef, Place),
+    holding(Item),
+    Item = coffee,
+    retract(holding(Item)),
+    assert(quest_done(coffee_quest, chef)),
+    write("Gym Guy: Oh, you have the coffee. I need a boost of energy."), nl,
+    write("You hand the cofffee to the Chef."), nl.
+
+give(Item, chef) :-
+    at(Place),
+    there_is(chef, Place),
+    holding(Item),
+    Item \= coffee,
+    write("Chef: I don't want that item."), nl.
+
+give(Item, gym_guy) :-
+    at(Place),
+    there_is(chef, Place),
+    \+ holding(Item),
+    write("Chef: You don't have the coffee."), nl.
+
 give(_, _) :-
     nl, write("This person doesn't want that item."), nl.
-
-/* DODAC WRĘCZANIE PRZEDMIOTÓW INNYM POSTACIOM */
 
 
 /* This rule describes how the number of picked up cigarettes increases */
@@ -317,7 +386,6 @@ increase_cigarettes(N) :-
     retract(cigarettes(Count)),
     NewCount is Count + N,
     assert(cigarettes(NewCount)).
-
 
 
 commands :-
