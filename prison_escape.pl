@@ -220,9 +220,14 @@ unlock(ventilation) :-
 unlock(Room) :-
     nl, write("Cannot unlock "), write(Room), nl.
 
-/* For debugging purpous only */
+/* For debugging purpose only */
 unlockall :-
     retractall(locked(_)).
+
+/* These rules describe how you can escape from prison */
+escape :-
+    at(prison_yard).
+
 
 /* These rule(s) tell what you can find in object*/
 
@@ -231,6 +236,10 @@ investigate(old_man) :-
     nl, write("Old Man: You filthy rat, keep your hands close!!"), nl,
     !, nl.
 
+investigate(pole16) :-
+    at(prison_yard),
+    nl, write("There is a hole in the wall just next to pole16. You can try to escape (type 'escape.')"), nl,
+    !, nl.
 
 investigate(Object) :-
     at(Place),
@@ -349,8 +358,8 @@ dialogue(old_man) :-
     write("Old Man: Here, take that key. Maybe you will find some prison_yard."), nl,
     write("You: Wait, you had a key to our cell all this time?!"), nl,
     write("Old Man: Maybe I had, maybe I didn't. That's not important now. Just take the key and find me some ciggaretes."), nl,
-    nl, write("You received cell2_key."), nl.
-
+    nl, write("You received cell2_key."),
+    !, nl.
 
 dialogue(old_man) :-
     quest_done(quest1, old_man),
@@ -358,22 +367,30 @@ dialogue(old_man) :-
     write("You: Okey, could you give me some advice now?"), nl,
     write("Old Man: Alright. There is a hole in the wall by the 16th lampost on a prison yard."), nl,
     write("You: But wait, the lights are on, everything will be visible."), nl,
-    write("Old Man: I don't give free information. Bring 5 more cigarettes."), nl.
+    write("Old Man: I don't give free information. Bring 5 more cigarettes."),
+    !, nl.
 
 dialogue(old_man) :-
     quest_done(quest2, old_man), nl,
     write("You: What about the light?"), nl,
     write("Old Man: You can break the ventilation hole in the hallway and get into the room with fuses, where you turn off the light."), nl,
     write("You: Holy Chicken Trolley, that's my opportunity!!"), nl,
-    assert(borders(hallway, ventilation)).
+    assert(borders(hallway, ventilation)),
+    !, nl.
+
+dialogue(old_man) :-
+    write("You: Hi, I..."), nl,
+    write("Old Man: Don't have time for you now, get lost."), nl.
 
 dialogue(gym_guy) :-
+    quest_done(quest2, old_man),
     (\+ quest_done(meal_quest, gym_guy)),
     write("You see a strong guy that is exhausted after his training."), nl,
     write("You: Hey! I have a case. Could I do something for you in return for a small favor?"), nl,
     write("Gym Guy: You little man, what would you need help for?"), nl,
     write("You: To break the ventilation hole."), nl,
-    write("Gym Guy: It's a piece of cake for me. Bring me a great meal cause I need to refill my carbs. Then I'll do the job."), nl.
+    write("Gym Guy: It's a piece of cake for me. Bring me a great meal cause I need to refill my carbs. Then I'll do the job."), nl,
+    !, nl.
 
 dialogue(gym_guy) :-
     quest_done(meal_quest, gym_guy),
@@ -385,7 +402,12 @@ dialogue(gym_guy) :-
     retract(there_is(gym_guy, gym)),
     assert(there_is(gym_guy, hallway)),
     retract(there_is(ventilation_grid, hallway)),
-    retract(locked(ventilation)).
+    retract(locked(ventilation)),
+    !, nl.
+
+dialogue(gym_guy) :-
+    write("You: Hi, I..."), nl,
+    write("Gym Guy: Don't have time for you now, get lost."), nl.
 
 dialogue(showering_prisoner) :-
     \+ quest_done(towel_quest, showering_prisoner),
@@ -401,7 +423,7 @@ dialogue(showering_prisoner) :-
     nl, write("You: You received your towel. What about my reward?"), nl,
     write("Prisoner: Hmm... I don't have anything on me, but.."), nl,
     write("You: But what?!"), nl,
-    write("Prisoners: Do you want some batteries?"), nl,
+    write("Prisoner: Do you want some batteries?"), nl,
     write("You: Why would I need batteries?"), nl,
     write("Prisoner: I dunno, maybe to power up a flashlight or something.."), nl,
     write("You: Fine, give me those batteries!"), nl,
@@ -410,13 +432,17 @@ dialogue(showering_prisoner) :-
     assert(there_is(pillow, cell3)),
     !, nl.
 
+dialogue(showering_prisoner) :-
+    write("You: Hi, I..."), nl,
+    write("Prisoner: Don't have time for you now, get lost."), nl.
 
 dialogue(chef) :-
     (\+ quest_done(coffee_quest, chef)),
     write("You: Hi! I've heard that you're the best chef in here. Could you make me a signature meal?"), nl,
     write("Chef: Nice words won't be enough. I'am actually pretty tired, if you could bring me some coffee then I'll cook something."), nl,
     write("You: I should have some in my cell, I'll be in a moment."), nl,
-    assert(there_is(coffee, table)).
+    assert(there_is(coffee, table)),
+    !, nl.
 
 dialogue(chef) :-
     quest_done(coffee_quest, chef),
@@ -424,7 +450,12 @@ dialogue(chef) :-
     write("Chef: Yeah, thanks. I'll cook something quickly."), nl,
     write("After few minutes chef hands you a hot meal."), nl,
     write("You: Thanks a lot, bye."), nl,
-    assert(holding(great_meal)).
+    assert(holding(great_meal)),
+    !, nl.
+
+dialogue(chef) :-
+    write("You: Hi, I..."), nl,
+    write("Chef: Don't have time for you now, get lost."), nl.
 
 
 /* These rules describe how to give an item to a person */
