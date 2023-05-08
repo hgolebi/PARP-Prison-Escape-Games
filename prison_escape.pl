@@ -1,6 +1,6 @@
 /* Andrew Tate Prison Escape, by Hubert Gołębiowski and Jakub Rozkosz. */
 
-:- dynamic at/1, there_is/2, holding/1, quest_done/2, cigarettes/1, locked/1, distracted/1.
+:- dynamic at/1, there_is/2, holding/1, quest_done/2, cigarettes/1, locked/1, distracted/1, borders/2.
 :- retractall(at(_)), retractall(there_is(_,_)), retractall(holding(_)), retractall(cigarettes(_)), retractall(quest_done(_,_)), locked(_).
 
 
@@ -26,6 +26,7 @@ borders(shed, prison_yard).
 locked(cell1).
 locked(hallway).
 locked(ventilation).
+locked(way_to_freedom_lights_turned_off).
 
 /* Objects in rooms definition */
 there_is(occupied_bed, cell1).
@@ -114,7 +115,7 @@ there_is(batteries, pillow).
 at(cell2).
 
 /* Initialize the number of cigarettes */
-cigarettes(1).
+cigarettes(10).
 
 /* These rule(s) tell what is going on around you*/
 
@@ -150,6 +151,25 @@ go(guard_room) :-
     write("I probably should've ditracted him first."), nl,
     game_over,
     !, nl.
+
+go(ventilation) :-
+    at(hallway),
+    borders(hallway, ventilation),
+    \+ locked(ventilation),
+    holding(batteries),
+    holding(flashlight),
+    retract(at(Place)),
+    assert(at(ventilation)),
+    assertz(borders(ventilation, shed)),
+    !, look.
+
+go(ventilation) :-
+    at(hallway),
+    borders(hallway, ventilation),
+    locked(ventilation),
+    retractall(borders(ventilation, shed)),
+    nl, write("It is too dark in here, so you cannot see the entrance to shed. Flashlight with batteries might help."),
+    !, look.
 
 go(Destination) :-
     at(Place),
@@ -226,7 +246,27 @@ unlockall :-
 
 /* These rules describe how you can escape from prison */
 escape :-
-    at(prison_yard).
+    at(prison_yard),
+    \+ locked(way_to_freedom_lights_turned_off),
+    nl, write("It was completely dark and you managed to escape from prison!"), nl,
+    nl, write("Congrats, you won the game!"),
+    finish,
+    !, nl.
+
+escape :-
+    at(prison_yard),
+    locked(way_to_freedom_lights_turned_off),
+    nl, write("All the guards saw your moves as the lights were turned on."), nl,
+    game_over, !, nl.
+
+escape :-
+    write("Ha ha ha not so fast... escaping won't be so easy."), nl.
+
+/* This rule describe how to blow fuses */
+blow_fuses :-
+    at(shed),
+    retractall(locked(way_to_freedom_lights_turned_off)),
+    nl, write("You turned off the power in prison."), nl.
 
 
 /* These rule(s) tell what you can find in object*/
@@ -239,6 +279,11 @@ investigate(old_man) :-
 investigate(pole16) :-
     at(prison_yard),
     nl, write("There is a hole in the wall just next to pole16. You can try to escape (type 'escape.')"), nl,
+    !, nl.
+
+investigate(fuse_box) :-
+    at(shed),
+    nl, write("Inside the fuse box are switchers to cut off the light. You can try doing this. (type 'blow_fuses.')"),
     !, nl.
 
 investigate(Object) :-
