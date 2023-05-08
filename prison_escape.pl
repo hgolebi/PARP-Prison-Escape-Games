@@ -114,7 +114,7 @@ there_is(batteries, pillow).
 at(cell2).
 
 /* Initialize the number of cigarettes */
-cigarettes(0).
+cigarettes(1).
 
 /* These rule(s) tell what is going on around you*/
 
@@ -124,8 +124,7 @@ look :-
     nl, write("You can see: "), nl,
     list_objects(Place),
     nl, write("You can go to:"), nl,
-    available_destinations(Place), nl,
-    print_cigarettes, nl.
+    available_destinations(Place), nl.
 
 list_objects(Place) :-
     there_is(Object, Place),
@@ -140,10 +139,6 @@ available_destinations(Place) :-
     fail.
 
 available_destinations(_).
-
-print_cigarettes :-
-    cigarettes(Count),
-    write("You currently have "), write(Count), write(" cigarettes."), nl.
 
 
 /* These rule(s) tell(s) how to move to different locations*/
@@ -530,7 +525,8 @@ give(_, _) :-
 
 inventory :-
     nl, write("You have: "), nl,
-    list_items.
+    list_items,
+    print_cigarettes, nl.
 
 list_items :-
     holding(Item),
@@ -538,6 +534,10 @@ list_items :-
     fail.
 
 list_items.
+
+print_cigarettes :-
+    cigarettes(Count),
+    write("* "), write(Count), write(" cigarettes"), nl.
 
 increase_cigarettes(N) :-
     retract(cigarettes(Count)),
