@@ -1,7 +1,7 @@
 /* Andrew Tate Prison Escape, by Hubert Gołębiowski and Jakub Rozkosz. */
 
-:- dynamic at/1, there_is/2, holding/1, quest_done/2, cigarettes/1.
-:- retractall(at(_)), retractall(there_is(_,_)), holding(_), retractall(cigarettes(_)), retractall(quest_done(_,_)).
+:- dynamic at/1, there_is/2, holding/1, quest_done/2, cigarettes/1, locked/1, distracted/1.
+:- retractall(at(_)), retractall(there_is(_,_)), holding(_), retractall(cigarettes(_)), retractall(quest_done(_,_)), locked(_).
 
 
 /* Map definition */
@@ -23,7 +23,9 @@ borders(ventilation, hallway).
 borders(ventilation, shed).
 borders(shed, outside).
 
-
+locked(cell1).
+locked(hallway).
+locked(ventilation).
 
 /* Objects in rooms definition */
 there_is(occupied_bed, cell1).
@@ -87,7 +89,6 @@ there_is(sleeping_guy, cell1).
 there_is(sleeping_guy2, cell1).
 there_is(chef, kitchen).
 there_is(showering_prisoner, shower_room).
-/* WYKONCZENIE POKOI DO DOKONCZENIA */
 
 /* Items locations (in objects) definition */
 there_is(poop, toilet).
@@ -105,6 +106,7 @@ there_is(cigarette, cabinet).
 there_is(cigarette, bench).
 there_is(playboy_magazine, shelf).
 there_is(flashligth, desk).
+there_is(cell1_key, guard).
 there_is(towel, bench).
 
 /* Starting in cell2 */
@@ -144,16 +146,83 @@ print_cigarettes :-
 
 
 /* These rule(s) tell(s) how to move to different locations*/
+go(guard_room) :-
+    at(Place),
+    borders(Place, guard_room),
+    \+ distracted(guard),
+    nl, write("Oh no, there is a guard!"), nl,
+    write("I probably should've ditracted him first."), nl,
+    game_over,
+    !, nl.
 
 go(Destination) :-
     at(Place),
     borders(Place, Destination),
+    \+ locked(Destination),
     retract(at(Place)),
     assert(at(Destination)),
     !, look.
+    
+go(Destination) :-
+    at(Place),
+    borders(Place, Destination),
+    locked(Destination),
+    nl, write("This place is locked."), nl,
+    !, nl.
 
 go(_) :-
     write("You can't go there!").
+
+/* This rules tell how to unclock room */
+unlock(Room) :-
+    at(Place),
+    borders(Place, Room),
+    \+ locked(Room),
+    nl, write("This place is already unlocked."), nl,
+    !, nl.
+
+unlock(cell1) :-
+    at(hallway),
+    locked(cell1),
+    holding(cell1_key),
+    retract(locked(cell1)),
+    nl, write("Used cell1_key to unlock cell1."), nl,
+    !, nl.
+
+unlock(cell1) :-
+    at(hallway),
+    locked(cell1),
+    \+ holding(cell1_key),
+    nl, write("I need a key to unlock this cell."), nl,
+    !, nl.
+
+unlock(hallway) :-
+    at(cell2),
+    locked(hallway),
+    holding(cell2_key),
+    retract(locked(hallway)),
+    nl, write("Used cell2_key to unlock cell2."), nl,
+    !, nl.
+
+unlock(hallway) :-
+    at(cell2),
+    locked(hallway),
+    \+ holding(cell2_key),
+    nl, write("I need a key to unlock my cell."), nl,
+    !, nl.
+
+unlock(ventilation) :-
+    at(hallway),
+    locked(ventilation),
+    nl, write("Im too weak to unlock this. Maybe someone can help me."), nl,
+    !, nl.
+
+unlock(Room) :-
+    nl, write("Cannot unlock "), write(Room), nl.
+
+/* For debuggin purpous only */
+unlockall :-
+    retractall(locked(_)).
 
 /* These rule(s) tell what you can find in object*/
 
@@ -184,8 +253,6 @@ investigate(Object) :-
 
 investigate(Object) :-
     nl, write("Cannot investigate "), write(Object), nl.
-
-there_is(hammer, bed).
 
 empty(Object) :- 
     \+ there_is(_, Object).
@@ -250,10 +317,17 @@ talk(Person) :-
 
 dialogue(old_man) :-
     (\+ quest_done(quest1, old_man)),
+    assert(holding(cell2_key)),
     write("You: Psst... I was thinking about escape. Are you in?"), nl,
     write("Old Man: Escape, huh? It won't be easy. I've been here for years and I'm too old for this."), nl,
     write("You: Damn... But you probably know this prison quite well. Do you have any advice?"), nl,
-    write("Old Man: Yes, but it will cost. Please bring me 5 cigarettes and we will talk..."), nl.
+    write("Old Man: Yes, but it will cost. Please bring me 5 cigarettes and we will talk."), nl,
+    write("You: I don't have that much.."), nl,
+    write("Old Man: Here, take that key. Maybe you will find some outside."), nl,
+    write("You: Wait, you had a key to our cell all this time?!"), nl,
+    write("Old Man: Maybe I had, maybe I didn't. That's not important now. Just take the key and find me some ciggaretes."), nl,
+    nl, write("You received cell2_key."), nl.
+
 
 dialogue(old_man) :-
     quest_done(quest1, old_man),
@@ -393,6 +467,21 @@ increase_cigarettes(N) :-
     NewCount is Count + N,
     assert(cigarettes(NewCount)).
 
+restart :-
+    make,
+    start.
+
+game_over :-
+    retract(at(_)),
+    retractall(holding(_)),
+    assert(at(isolation_ward)),
+    nl, write("YOU GOT CAUGHT!"), nl,
+    nl, write("type restart. to start over again"), nl.
+
+finish :-
+    nl,
+    write('The game is over. Please enter the "halt." command.'),
+    nl.
 
 commands :-
     nl,
@@ -400,6 +489,7 @@ commands :-
         write('Available commands are:'), nl,
         write('start.                -- to start the game.'), nl,
         write('go(Destination).      -- to go to selected destination.'), nl,
+        write('unlock(Destination).  -- to unlock a room.'), nl,
         write('look.                 -- to look around you again.'), nl,
         write('investigate(Object)   -- to see if there is any item in object'), nl,
         write('take(Item).           -- to pick up an item.'), nl,
@@ -407,6 +497,7 @@ commands :-
         write('give(Item, Person).   -- to give a person the item they wanted'), nl,
         write('talk(Person).         -- to talk to a person'), nl,
         write('commands.             -- to see this message again.'), nl,
+        write('restart .             -- to restart the game.'), nl,
         write('halt.                 -- to end the game and quit.'), nl,
         nl.
 
