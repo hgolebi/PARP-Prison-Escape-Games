@@ -276,7 +276,7 @@ empty(Object) :-
 
 take(towel, Object) :-
     at(gym),
-    there_is(towel, Obejct),
+    there_is(towel, Object),
     there_is(gym_guy, gym),
     nl, write("Gym Guy: Hey what do you think you're doing?! That's my towel!"), nl,
     write("You: Can I borrow it?"), nl,
@@ -376,9 +376,11 @@ dialogue(old_man) :-
     write("Old Man: You can break the ventilation hole in the hallway and get into the room with fuses, where you turn off the light."), nl,
     write("You: Holy Chicken Trolley, that's my opportunity!!"), nl,
     assert(borders(hallway, ventilation)),
+    assert(quest_done(all_quests, old_man)),
     !, nl.
 
 dialogue(old_man) :-
+    quest_done(all_quests, old_man),
     write("You: Hi, I..."), nl,
     write("Old Man: Don't have time for you now, get lost."), nl.
 
@@ -403,9 +405,11 @@ dialogue(gym_guy) :-
     assert(there_is(gym_guy, hallway)),
     retract(there_is(ventilation_grid, hallway)),
     retract(locked(ventilation)),
+    assert(quest_done(all_quests, gym_guy)),
     !, nl.
 
 dialogue(gym_guy) :-
+    quest_done(all_quests, gym_guy),
     write("You: Hi, I..."), nl,
     write("Gym Guy: Don't have time for you now, get lost."), nl.
 
@@ -430,9 +434,11 @@ dialogue(showering_prisoner) :-
     write("Prisoner: You can find them under a pillow in cell 3."), nl,
     write("You: Oh, you don't have them on you, right.."), nl,
     assert(there_is(pillow, cell3)),
+    assert(quest_done(all_quests, showering_prisoner)),
     !, nl.
 
 dialogue(showering_prisoner) :-
+    quest_done(all_quests, showering_prisoner),
     write("You: Hi, I..."), nl,
     write("Prisoner: Don't have time for you now, get lost."), nl.
 
@@ -451,9 +457,11 @@ dialogue(chef) :-
     write("After few minutes chef hands you a hot meal."), nl,
     write("You: Thanks a lot, bye."), nl,
     assert(holding(great_meal)),
+    assert(quest_done(all_quests, chef)),
     !, nl.
 
 dialogue(chef) :-
+    quest_done(all_quests, chef),
     write("You: Hi, I..."), nl,
     write("Chef: Don't have time for you now, get lost."), nl.
 
