@@ -1,7 +1,7 @@
 /* Andrew Tate Prison Escape, by Hubert Gołębiowski and Jakub Rozkosz. */
 
 :- dynamic at/1, there_is/2, holding/1, quest_done/2, cigarettes/1, locked/1, distracted/1.
-:- retractall(at(_)), retractall(there_is(_,_)), holding(_), retractall(cigarettes(_)), retractall(quest_done(_,_)), locked(_).
+:- retractall(at(_)), retractall(there_is(_,_)), retractall(holding(_)), retractall(cigarettes(_)), retractall(quest_done(_,_)), locked(_).
 
 
 /* Map definition */
@@ -528,6 +528,17 @@ give(_, _) :-
 
 /* This rule describes how the number of picked up cigarettes increases */
 
+inventory :-
+    nl, write("You have: "), nl,
+    list_items.
+
+list_items :-
+    holding(Item),
+    write("* "), write(Item), nl,
+    fail.
+
+list_items.
+
 increase_cigarettes(N) :-
     retract(cigarettes(Count)),
     NewCount is Count + N,
@@ -561,6 +572,7 @@ commands :-
         write('take(Item).           -- to pick up an item.'), nl,
         write('drop(Item).           -- to put down an item.'), nl,
         write('give(Item, Person).   -- to give a person the item they wanted'), nl,
+        write('inventory.            -- to list the items that you posess.'), nl,
         write('talk(Person).         -- to talk to a person'), nl,
         write('commands.             -- to see this message again.'), nl,
         write('restart .             -- to restart the game.'), nl,
