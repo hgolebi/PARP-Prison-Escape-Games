@@ -21,7 +21,7 @@ borders(shower_room, guard_room).
 borders(gym, guard_room).
 borders(ventilation, hallway).
 borders(ventilation, shed).
-borders(shed, outside).
+borders(shed, prison_yard).
 
 locked(cell1).
 locked(hallway).
@@ -58,27 +58,27 @@ there_is(treadmill, gym).
 there_is(treadmill2, gym).
 there_is(bench, gym).
 there_is(fuse_box, shed).
-there_is(pole1, outside).
-there_is(pole2, outside).
-there_is(pole3, outside).
-there_is(pole4, outside).
-there_is(pole5, outside).
-there_is(pole6, outside).
-there_is(pole7, outside).
-there_is(pole8, outside).
-there_is(pole9, outside).
-there_is(pole10, outside).
-there_is(pole11, outside).
-there_is(pole12, outside).
-there_is(pole13, outside).
-there_is(pole14, outside).
-there_is(pole15, outside).
-there_is(pole16, outside).
-there_is(pole17, outside).
-there_is(pole18, outside).
-there_is(pole19, outside).
-there_is(pole20, outside).
-there_is(pole21, outside).
+there_is(pole1, prison_yard).
+there_is(pole2, prison_yard).
+there_is(pole3, prison_yard).
+there_is(pole4, prison_yard).
+there_is(pole5, prison_yard).
+there_is(pole6, prison_yard).
+there_is(pole7, prison_yard).
+there_is(pole8, prison_yard).
+there_is(pole9, prison_yard).
+there_is(pole10, prison_yard).
+there_is(pole11, prison_yard).
+there_is(pole12, prison_yard).
+there_is(pole13, prison_yard).
+there_is(pole14, prison_yard).
+there_is(pole15, prison_yard).
+there_is(pole16, prison_yard).
+there_is(pole17, prison_yard).
+there_is(pole18, prison_yard).
+there_is(pole19, prison_yard).
+there_is(pole20, prison_yard).
+there_is(pole21, prison_yard).
 
 
 /* People in rooms definition */
@@ -346,7 +346,7 @@ dialogue(old_man) :-
     write("You: Damn... But you probably know this prison quite well. Do you have any advice?"), nl,
     write("Old Man: Yes, but it will cost. Please bring me 5 cigarettes and we will talk."), nl,
     write("You: I don't have that much.."), nl,
-    write("Old Man: Here, take that key. Maybe you will find some outside."), nl,
+    write("Old Man: Here, take that key. Maybe you will find some prison_yard."), nl,
     write("You: Wait, you had a key to our cell all this time?!"), nl,
     write("Old Man: Maybe I had, maybe I didn't. That's not important now. Just take the key and find me some ciggaretes."), nl,
     nl, write("You received cell2_key."), nl.
