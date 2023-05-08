@@ -166,9 +166,11 @@ go(ventilation) :-
 go(ventilation) :-
     at(hallway),
     borders(hallway, ventilation),
-    locked(ventilation),
+    \+ locked(ventilation),
+    retract(at(hallway)),
+    assert(at(ventilation)),
     retractall(borders(ventilation, shed)),
-    nl, write("It is too dark in here, so you cannot see the entrance to shed. Flashlight with batteries might help."),
+    nl, write("It is too dark in here, so you cannot see the entrance to shed. Flashlight with batteries might help."), nl,
     !, look.
 
 go(Destination) :-
@@ -442,6 +444,7 @@ dialogue(old_man) :-
     !, nl.
 
 dialogue(old_man) :-
+    \+ quest_done(all_quests, old_man),
     quest_done(quest2, old_man), nl,
     write("You: What about the light?"), nl,
     write("Old Man: You can break the ventilation hole in the hallway and get into the room with fuses, where you turn off the light."), nl,
@@ -470,6 +473,7 @@ dialogue(gym_guy) :-
     !, nl.
 
 dialogue(gym_guy) :-
+    \+ quest_done(all_quests, gym_guy),
     quest_done(meal_quest, gym_guy),
     write("You: So, will you help me with yout muscles?"), nl,
     write("Gym Guy: Yeah, the meal was great. Take me to the place."), nl,
@@ -498,6 +502,7 @@ dialogue(showering_prisoner) :-
     !, nl. 
 
 dialogue(showering_prisoner) :-
+    \+ quest_done(all_quests, showering_prisoner),
     quest_done(towel_quest, showering_prisoner),
     nl, write("You: You received your towel. What about my reward?"), nl,
     write("Prisoner: Hmm... I don't have anything on me, but.."), nl,
@@ -526,6 +531,7 @@ dialogue(chef) :-
     !, nl.
 
 dialogue(chef) :-
+    \+ quest_done(all_quests, chef),
     quest_done(coffee_quest, chef),
     write("You: Now you're quite caffenaited, aren't you?"), nl,
     write("Chef: Yeah, thanks. I'll cook something quickly."), nl,
