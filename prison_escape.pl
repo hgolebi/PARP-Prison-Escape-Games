@@ -270,29 +270,29 @@ empty(Object) :-
 
 /* These rules describe how to pick up an object. */
 
-take(towel) :-
+take(towel, Object) :-
     at(gym),
-    there_is(towel, bench),
+    there_is(towel, Obejct),
     there_is(gym_guy, gym),
     nl, write("Gym Guy: Hey what do you think you're doing?! That's my towel!"), nl,
     write("You: Can I borrow it?"), nl,
     write("Gym Guy: Forget it. I need it for my workout."), nl,
     !, nl.
 
-take(towel) :-
+take(towel, Object) :-
     at(gym),
-    there_is(towel, bench),
+    there_is(towel, Object),
     \+ there_is(gym_guy, gym),
-    retract(there_is(towel, bench)),
+    retract(there_is(towel, Object)),
     assert(holding(towel)),
     !, nl.
 
-take(Item) :-
+take(Item, Object) :-
     holding(Item),
     write("You're already holding it!"),
     !, nl.
 
-take(cigarette) :-
+take(cigarette, Object) :-
     at(Place),
     there_is(Object, Place),
     there_is(cigarette, Object),
@@ -302,7 +302,7 @@ take(cigarette) :-
     write("OK."),
     !, nl.
 
-take(Item) :-
+take(Item, Object) :-
     at(Place),
     there_is(Object, Place),
     there_is(Item, Object),
@@ -311,14 +311,14 @@ take(Item) :-
     write("OK."),
     !, nl.
 
-take(_) :-
+take(_, _) :-
     write("I don't see it here."),
     nl.
 
 
 /* These rules describe how to put down an object. */
 
-drop(Item) :-
+drop(Item, Object) :-
     holding(Item),
     at(Place),
     there_is(Object, Place),
@@ -369,7 +369,7 @@ dialogue(old_man) :-
     quest_done(quest2, old_man), nl,
     write("You: What about the light?"), nl,
     write("Old Man: You can break the ventilation hole in the hallway and get into the room with fuses, where you turn off the light."), nl,
-    write("You: Holy Chicken Trolley,  that's my opportunity!!"), nl,
+    write("You: Holy Chicken Trolley, that's my opportunity!!"), nl,
     assert(borders(hallway, ventilation)).
 
 dialogue(gym_guy) :-
@@ -378,7 +378,7 @@ dialogue(gym_guy) :-
     write("You: Hey! I have a case. Could I do something for you in return for a small favor?"), nl,
     write("Gym Guy: You little man, what would you need help for?"), nl,
     write("You: To break the ventilation hole."), nl,
-    write("Gym Guy: It's a piece of cake for me. Bring me great meal cause I need to refill my carbs. Then I'll do the job."), nl.
+    write("Gym Guy: It's a piece of cake for me. Bring me a great meal cause I need to refill my carbs. Then I'll do the job."), nl.
 
 dialogue(gym_guy) :-
     quest_done(meal_quest, gym_guy),
@@ -396,7 +396,7 @@ dialogue(showering_prisoner) :-
     \+ quest_done(towel_quest, showering_prisoner),
     nl, write("Prisoner: Hey what are you looking at?!"), nl,
     write("You: I was just.."), nl,    
-    write("Prisoner: Get out now!! Or actually, wait.. Bring me the towel!"), nl,
+    write("Prisoner: Get out now!! Or actually, wait.. Bring me a towel!"), nl,
     write("You: Why would I?"), nl,
     write("Prisoner: You dare to ask?! Fine, if you decide to help me I'll give you something in return."), nl,   
     !, nl. 
@@ -568,11 +568,11 @@ commands :-
         write('go(Destination).      -- to go to selected destination.'), nl,
         write('unlock(Destination).  -- to unlock a room.'), nl,
         write('look.                 -- to look around you again.'), nl,
-        write('investigate(Object)   -- to see if there is any item in object'), nl,
-        write('take(Item).           -- to pick up an item.'), nl,
-        write('drop(Item).           -- to put down an item.'), nl,
-        write('give(Item, Person).   -- to give a person the item they wanted'), nl,
+        write('investigate(Object).  -- to see if there is any item in object.'), nl,
+        write('take(Item, Object).   -- to pick up an item.'), nl,
+        write('drop(Item, Object).   -- to put down an item.'), nl,
         write('inventory.            -- to list the items that you posess.'), nl,
+        write('give(Item, Person).   -- to give a person the item they wanted'), nl,
         write('talk(Person).         -- to talk to a person'), nl,
         write('commands.             -- to see this message again.'), nl,
         write('restart .             -- to restart the game.'), nl,
