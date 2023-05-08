@@ -404,9 +404,6 @@ talk(Person) :-
     dialogue(Person),
     !, nl.
 
-talk(Person) :-
-    nl, write("There is no one named "), write(Person), write(" here."), nl.
-
 dialogue(sleeping_guy) :-
     nl, write("Sleeping guy: Zzzzz..."), nl,
     !, nl.
@@ -456,7 +453,11 @@ dialogue(old_man) :-
 dialogue(old_man) :-
     quest_done(all_quests, old_man),
     write("You: Hi, I..."), nl,
-    write("Old Man: More cigarettes, i need more..."), nl.
+    write("Old Man: Don't have time for you now, get lost."), !, nl.
+
+dialogue(old_man) :-
+    write("You: Hi, I..."), nl,
+    write("Gym Guy: More cigarettes, i need more..."), !, nl.
 
 dialogue(gym_guy) :-
     quest_done(quest2, old_man),
@@ -485,7 +486,7 @@ dialogue(gym_guy) :-
 dialogue(gym_guy) :-
     quest_done(all_quests, gym_guy),
     write("You: Hi, I..."), nl,
-    write("Gym Guy: Don't have time for you now, get lost."), nl.
+    write("Gym Guy: Don't have time for you now, get lost."), !, nl.
 
 dialogue(showering_prisoner) :-
     \+ quest_done(towel_quest, showering_prisoner),
@@ -514,7 +515,7 @@ dialogue(showering_prisoner) :-
 dialogue(showering_prisoner) :-
     quest_done(all_quests, showering_prisoner),
     write("You: Hi, I..."), nl,
-    write("Prisoner: Don't have time for you now, get lost."), nl.
+    write("Prisoner: Don't have time for you now, get lost."), !, nl.
 
 dialogue(chef) :-
     (\+ quest_done(coffee_quest, chef)),
@@ -537,8 +538,10 @@ dialogue(chef) :-
 dialogue(chef) :-
     quest_done(all_quests, chef),
     write("You: Hi, I..."), nl,
-    write("Chef: Don't have time for you now, get lost."), nl.
+    write("Chef: Don't have time for you now, get lost."), !, nl.
 
+talk(Person) :-
+    nl, write("There is no one named "), write(Person), write(" here."), nl.
 
 /* These rules describe how to give an item to a person */
 
