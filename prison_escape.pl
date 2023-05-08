@@ -106,7 +106,7 @@ there_is(cigarette, treadmill).
 there_is(cigarette, cabinet).
 there_is(cigarette, bench).
 there_is(playboy_magazine, shelf).
-there_is(flashligth, desk).
+there_is(flashlight, desk).
 there_is(cell1_key, guard).
 there_is(towel, bench).
 there_is(batteries, pillow).
@@ -115,7 +115,7 @@ there_is(batteries, pillow).
 at(cell2).
 
 /* Initialize the number of cigarettes */
-cigarettes(10).
+cigarettes(0).
 
 /* These rule(s) tell what is going on around you*/
 
@@ -189,9 +189,12 @@ go(Destination) :-
 go(_) :-
     write("You can't go there!").
 
+/* FOR DEBUGGING REASONS ONLY */
+/* ENABLES PLAYER TO TELEPORT TO A LOCATION */
 debuggo(Place) :-
     retract(at(_)),
-    assert(at(Place)).
+    assert(at(Place)),
+    look.
 
 /* This rules tell how to unclock room */
 unlock(Room) :-
@@ -319,6 +322,16 @@ empty(Object) :-
 
 /* These rules describe how to pick up an object. */
 
+take(playboy_magazine, Object) :-
+    at(Place),
+    there_is(Object, Place),
+    there_is(playboy_magazine, Object),
+    retract(there_is(playboy_magazine, Object)),
+    assert(holding(playboy_magazine)),
+    nl, write("Maybe I can use this to distract guard."), nl,
+    nl, write("type leave(playboy_magazine, Place). to leave the magazine"), nl,
+    !, nl.
+
 take(towel, Object) :-
     at(gym),
     there_is(towel, Object),
@@ -336,17 +349,12 @@ take(towel, Object) :-
     assert(holding(towel)),
     !, nl.
 
-take(Item, Object) :-
-    holding(Item),
-    write("You're already holding it!"),
-    !, nl.
 
 take(cigarette, Object) :-
     at(Place),
     there_is(Object, Place),
     there_is(cigarette, Object),
     retract(there_is(cigarette, Object)),
-    assert(holding(cigarette)),
     increase_cigarettes(1),
     write("OK."),
     !, nl.
@@ -367,17 +375,24 @@ take(_, _) :-
 
 /* These rules describe how to put down an object. */
 
-drop(Item, Object) :-
-    holding(Item),
-    at(Place),
-    there_is(Object, Place),
-    retract(holding(Item)),
-    assert(there_is(Item, Object)),
-    write('OK.'),
+leave(playboy_magazine, guard_room) :-
+    holding(playboy_magazine),
+    at(hallway),
+    retract(holding(playboy_magazine)),
+    assert(distracted(guard)),
+    nl, write("You left a magazine in guard room. Looks like the guard is distracted ;)"), nl,
     !, nl.
 
-drop(_) :-
-    write("You aren't holding it!"),
+leave(playboy_magazine, Destination) :-
+    at(Place),
+    Destination \= Place,
+    \+ borders(Place, Destination),
+    nl, write("You're too far."), nl,
+    !, nl.
+
+
+leave(playboy_magazine, _) :-
+    nl, write("Probably I shouldn't leave it there."),
     nl.
 
 
@@ -392,8 +407,22 @@ talk(Person) :-
 talk(Person) :-
     nl, write("There is no one named "), write(Person), write(" here."), nl.
 
+dialogue(sleeping_guy) :-
+    nl, write("Sleeping guy: Zzzzz..."), nl,
+    !, nl.
+
+dialogue(sleeping_guy2) :-
+    nl, write("Sleeping guy: Zzzzzzzz..."), nl,
+    !, nl.
+
+dialogue(guard) :-
+    nl, write("Guard: Wait, what are you doing here?!"), nl,
+    game_over, 
+    !, nl.
+
 dialogue(old_man) :-
     (\+ quest_done(quest1, old_man)),
+    \+ holding(cell2_key),
     assert(holding(cell2_key)),
     write("You: Psst... I was thinking about escape. Are you in?"), nl,
     write("Old Man: Escape, huh? It won't be easy. I've been here for years and I'm too old for this."), nl,
@@ -427,7 +456,7 @@ dialogue(old_man) :-
 dialogue(old_man) :-
     quest_done(all_quests, old_man),
     write("You: Hi, I..."), nl,
-    write("Old Man: Don't have time for you now, get lost."), nl.
+    write("Old Man: More cigarettes, i need more..."), nl.
 
 dialogue(gym_guy) :-
     quest_done(quest2, old_man),
@@ -489,7 +518,7 @@ dialogue(showering_prisoner) :-
 
 dialogue(chef) :-
     (\+ quest_done(coffee_quest, chef)),
-    write("You: Hi! I've heard that you're the best chef in here. Could you make me a signature meal?"), nl,
+    write("You: Hi! I've heard that you're the best chef in here. Could you make me your signature meal?"), nl,
     write("Chef: Nice words won't be enough. I'am actually pretty tired, if you could bring me some coffee then I'll cook something."), nl,
     write("You: I should have some in my cell, I'll be in a moment."), nl,
     assert(there_is(coffee, table)),
@@ -513,15 +542,13 @@ dialogue(chef) :-
 
 /* These rules describe how to give an item to a person */
 
-give(Item, old_man) :-
+give(cigarettes, old_man) :-
     at(Place),
     there_is(old_man, Place),
-    holding(Item),
-    Item = cigarettes,
     cigarettes(Count),
     Count >= 5,
     NewCount is Count - 5,
-    retract(holding(Item)),
+    retract(cigarettes(Count)),
     assert(cigarettes(NewCount)),
     (   (\+ quest_done(quest1, old_man))
     ->  assert(quest_done(quest1, old_man))
