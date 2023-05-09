@@ -158,7 +158,7 @@ go(ventilation) :-
     \+ locked(ventilation),
     holding(batteries),
     holding(flashlight),
-    retract(at(Place)),
+    retract(at(_)),
     assert(at(ventilation)),
     assertz(borders(ventilation, shed)),
     !, look.
@@ -218,7 +218,7 @@ unlock(cell1) :-
     at(hallway),
     locked(cell1),
     \+ holding(cell1_key),
-    nl, write("I need a key to unlock this cell."), nl,
+    nl, write("You need a key to unlock this cell."), nl,
     !, nl.
 
 unlock(hallway) :-
@@ -233,13 +233,13 @@ unlock(hallway) :-
     at(cell2),
     locked(hallway),
     \+ holding(cell2_key),
-    nl, write("I need a key to unlock my cell."), nl,
+    nl, write("You need a key to unlock this door."), nl,
     !, nl.
 
 unlock(ventilation) :-
     at(hallway),
     locked(ventilation),
-    nl, write("Im too weak to unlock this. Maybe someone can help me."), nl,
+    nl, write("Im too weak to unlock this. Maybe someone strong can help me."), nl,
     !, nl.
 
 unlock(Room) :-
@@ -330,7 +330,7 @@ take(playboy_magazine, Object) :-
     there_is(playboy_magazine, Object),
     retract(there_is(playboy_magazine, Object)),
     assert(holding(playboy_magazine)),
-    nl, write("Maybe I can use this to distract guard."), nl,
+    nl, write("You: Cool magazine, maybe I can use it to distract the guard."), nl,
     nl, write("type leave(playboy_magazine, Place). to leave the magazine"), nl,
     !, nl.
 
@@ -406,6 +406,15 @@ talk(Person) :-
     dialogue(Person),
     !, nl.
 
+talk(Person) :-
+    at(Place),
+    there_is(Person, Place),
+    nl, write("Looks like "), write(Person), write(" doesn't want to talk now."), nl,
+    !, nl.
+
+talk(Person) :-
+    nl, write("There is no one named "), write(Person), write(" here."), nl.
+
 dialogue(sleeping_guy) :-
     nl, write("Sleeping guy: Zzzzz..."), nl,
     !, nl.
@@ -423,12 +432,13 @@ dialogue(old_man) :-
     (\+ quest_done(quest1, old_man)),
     \+ holding(cell2_key),
     assert(holding(cell2_key)),
+    nl,
     write("You: Psst... I was thinking about escape. Are you in?"), nl,
     write("Old Man: Escape, huh? It won't be easy. I've been here for years and I'm too old for this."), nl,
     write("You: Damn... But you probably know this prison quite well. Do you have any advice?"), nl,
     write("Old Man: Yes, but it will cost. Please bring me 5 cigarettes and we will talk."), nl,
     write("You: I don't have that much.."), nl,
-    write("Old Man: Here, take that key. Maybe you will find some prison_yard."), nl,
+    write("Old Man: Here, take that key. Maybe you will find some outside."), nl,
     write("You: Wait, you had a key to our cell all this time?!"), nl,
     write("Old Man: Maybe I had, maybe I didn't. That's not important now. Just take the key and find me some ciggaretes."), nl,
     nl, write("You received cell2_key."),
@@ -438,6 +448,7 @@ dialogue(old_man) :-
     \+ waiting_for(cigarettes),
     quest_done(quest1, old_man),
     (\+ quest_done(quest2, old_man)),
+    nl,
     write("You: Okey, could you give me some advice now?"), nl,
     write("Old Man: Alright. There is a hole in the wall by the 16th pole on a prison yard."), nl,
     write("You: But wait, the lights are on, everything will be visible."), nl,
@@ -457,10 +468,12 @@ dialogue(old_man) :-
 
 dialogue(old_man) :-
     quest_done(all_quests, old_man),
+    nl,
     write("You: Hi, I..."), nl,
     write("Old Man: Don't have time for you now, get lost."), !, nl.
 
 dialogue(old_man) :-
+    nl,
     write("You: Hi, I..."), nl,
     write("Old Man: Bring me my cigarettes..."), !, nl.
 
@@ -468,6 +481,7 @@ dialogue(gym_guy) :-
     \+ waiting_for(meal),
     quest_done(quest2, old_man),
     (\+ quest_done(meal_quest, gym_guy)),
+    nl,
     write("You see a strong guy that is exhausted after his training."), nl,
     write("You: Hey! I have a case. Could I do something for you in return for a small favor?"), nl,
     write("Gym Guy: You little man, what would you need help for?"), nl,
@@ -479,7 +493,7 @@ dialogue(gym_guy) :-
 dialogue(gym_guy) :-
     \+ quest_done(all_quests, gym_guy),
     quest_done(meal_quest, gym_guy),
-    write("You: So, will you help me with yout muscles?"), nl,
+    write("You: So, will you help me with your muscles?"), nl,
     write("Gym Guy: Yeah, the meal was great. Take me to the place."), nl,
     write("You and the Gym Guy went to the ventilation grid and broke it."), nl,
     retract(at(gym)),
@@ -507,7 +521,9 @@ dialogue(showering_prisoner) :-
     write("You: I was just.."), nl,    
     write("Prisoner: Get out now!! Or actually, wait.. Bring me a towel!"), nl,
     write("You: Why would I?"), nl,
-    write("Prisoner: You dare to ask?! Fine, if you decide to help me I'll give you something in return."), nl,
+    write("Prisoner: You dare to ask?!"), nl
+    write("You: I'm not going to do this for free."), nl
+    write("Prisoner: Fine, if you decide to help me I'll give you something in return."), nl,   
     assert(waiting_for(towel)), 
     !, nl. 
 
@@ -566,10 +582,10 @@ dialogue(chef) :-
     write("You: Hi, I..."), nl,
     write("Chef: Bring me my coffee..."), !, nl.
 
-talk(Person) :-
-    nl, write("There is no one named "), write(Person), write(" here."), nl.
-
 /* These rules describe how to give an item to a person */
+give(cigarette, _) :-
+    nl, write("to give someone cigarettes, type give(cigarettes, Person)."), nl,
+    !, nl.
 
 give(cigarettes, old_man) :-
     at(Place),
@@ -583,6 +599,7 @@ give(cigarettes, old_man) :-
     ->  assert(quest_done(quest1, old_man))
     ;   assert(quest_done(quest2, old_man))
     ),
+    nl,
     write("Old Man: Ah, you've brought the cigarettes. Good."), nl,
     write("You hand the cigarettes to the Old Man."), nl,
     !, nl.
@@ -590,10 +607,10 @@ give(cigarettes, old_man) :-
 give(Item, old_man) :-
     at(Place),
     there_is(old_man, Place),
-    holding(Item),
     Item = cigarettes,
     cigarettes(Count),
     Count < 5,
+    nl,
     write("Old Man: You don't have enough cigarettes."), nl,
     !, nl.
 
@@ -602,6 +619,7 @@ give(Item, old_man) :-
     there_is(old_man, Place),
     holding(Item),
     Item \= cigarettes,
+    nl,
     write("Old Man: I don't want that item."), nl,
     !, nl.
 
@@ -612,7 +630,7 @@ give(Item, gym_guy) :-
     Item = great_meal,
     retract(holding(Item)),
     assert(quest_done(meal_quest, gym_guy)),
-    write("Gym Guy: Just on time, I'm hungry as hell."), nl,
+    nl, write("Gym Guy: Just on time, I'm hungry as hell."), nl,
     write("You hand the meal to the Gym Guy."), nl,
     !, nl.
 
@@ -621,6 +639,7 @@ give(Item, gym_guy) :-
     there_is(gym_guy, Place),
     holding(Item),
     Item \= great_meal,
+    nl,
     write("Gym Guy: I don't want that item."), nl,
     !, nl.
 
@@ -628,6 +647,7 @@ give(Item, gym_guy) :-
     at(Place),
     there_is(gym_guy, Place),
     \+ holding(Item),
+    nl,
     write("Gym Guy: You don't have the meal."), nl,
     !, nl.
 
@@ -638,6 +658,7 @@ give(Item, chef) :-
     Item = coffee,
     retract(holding(Item)),
     assert(quest_done(coffee_quest, chef)),
+    nl,
     write("Gym Guy: Oh, you have the coffee. I need a boost of energy."), nl,
     write("You hand the cofffee to the Chef."), nl,
     !, nl.
@@ -647,6 +668,7 @@ give(Item, chef) :-
     there_is(chef, Place),
     holding(Item),
     Item \= coffee,
+    nl,
     write("Chef: I don't want that item."), nl,
     !, nl.
 
@@ -654,6 +676,7 @@ give(Item, gym_guy) :-
     at(Place),
     there_is(chef, Place),
     \+ holding(Item),
+    nl,
     write("Chef: You don't have the coffee."), nl,
     !, nl.
 
@@ -730,11 +753,10 @@ commands :-
         write('Available commands are:'), nl,
         write('start.                -- to start the game.'), nl,
         write('go(Destination).      -- to go to selected destination.'), nl,
-        write('unlock(Destination).  -- to unlock a room.'), nl,
+        write('unlock(Destination).  -- to unlock th passage to the destination.'), nl,
         write('look.                 -- to look around you again.'), nl,
         write('investigate(Object).  -- to see if there is any item in object.'), nl,
-        write('take(Item, Object).   -- to pick up an item.'), nl,
-        write('drop(Item, Object).   -- to put down an item.'), nl,
+        write('take(Item, Object).   -- to pick up an item from object (or person).'), nl,
         write('inventory.            -- to list the items that you posess.'), nl,
         write('give(Item, Person).   -- to give a person the item they wanted'), nl,
         write('talk(Person).         -- to talk to a person'), nl,
