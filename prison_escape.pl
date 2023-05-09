@@ -1,6 +1,6 @@
 /* Andrew Tate Prison Escape, by Hubert Gołębiowski and Jakub Rozkosz. */
 
-:- dynamic at/1, there_is/2, holding/1, quest_done/2, cigarettes/1, locked/1, distracted/1, borders/2.
+:- dynamic at/1, there_is/2, holding/1, quest_done/2, cigarettes/1, locked/1, distracted/1, borders/2, waiting_for/1.
 :- retractall(at(_)), retractall(there_is(_,_)), retractall(holding(_)), retractall(cigarettes(_)), retractall(quest_done(_,_)), locked(_).
 
 
@@ -438,7 +438,7 @@ dialogue(old_man) :-
     quest_done(quest1, old_man),
     (\+ quest_done(quest2, old_man)),
     write("You: Okey, could you give me some advice now?"), nl,
-    write("Old Man: Alright. There is a hole in the wall by the 16th lampost on a prison yard."), nl,
+    write("Old Man: Alright. There is a hole in the wall by the 16th pole on a prison yard."), nl,
     write("You: But wait, the lights are on, everything will be visible."), nl,
     write("Old Man: I don't give free information. Bring 5 more cigarettes."),
     !, nl.
@@ -460,9 +460,10 @@ dialogue(old_man) :-
 
 dialogue(old_man) :-
     write("You: Hi, I..."), nl,
-    write("Gym Guy: More cigarettes, i need more..."), !, nl.
+    write("Old Man: Bring me my cigarettes..."), !, nl.
 
 dialogue(gym_guy) :-
+    \+ waiting_for(meal),
     quest_done(quest2, old_man),
     (\+ quest_done(meal_quest, gym_guy)),
     write("You see a strong guy that is exhausted after his training."), nl,
@@ -470,6 +471,7 @@ dialogue(gym_guy) :-
     write("Gym Guy: You little man, what would you need help for?"), nl,
     write("You: To break the ventilation hole."), nl,
     write("Gym Guy: It's a piece of cake for me. Bring me a great meal cause I need to refill my carbs. Then I'll do the job."), nl,
+    assert(watiting_for(meal)),
     !, nl.
 
 dialogue(gym_guy) :-
@@ -492,13 +494,19 @@ dialogue(gym_guy) :-
     write("You: Hi, I..."), nl,
     write("Gym Guy: Don't have time for you now, get lost."), !, nl.
 
+dialogue(gym_guy) :-
+    write("You: Hi, I..."), nl,
+    write("Gym Guy: Bring me my meal..."), !, nl.
+
 dialogue(showering_prisoner) :-
+    \+ waiting_for(towel),
     \+ quest_done(towel_quest, showering_prisoner),
     nl, write("Prisoner: Hey what are you looking at?!"), nl,
     write("You: I was just.."), nl,    
     write("Prisoner: Get out now!! Or actually, wait.. Bring me a towel!"), nl,
     write("You: Why would I?"), nl,
-    write("Prisoner: You dare to ask?! Fine, if you decide to help me I'll give you something in return."), nl,   
+    write("Prisoner: You dare to ask?! Fine, if you decide to help me I'll give you something in return."), nl,
+    assert(waiting_for(towel)), 
     !, nl. 
 
 dialogue(showering_prisoner) :-
@@ -522,12 +530,18 @@ dialogue(showering_prisoner) :-
     write("You: Hi, I..."), nl,
     write("Prisoner: Don't have time for you now, get lost."), !, nl.
 
+dialogue(showering_prisoner) :-
+    write("You: Hi, I..."), nl,
+    write("Prisoner: Bring me my towel..."), !, nl.
+
 dialogue(chef) :-
+    \+ waiting_for(coffee),
     (\+ quest_done(coffee_quest, chef)),
     write("You: Hi! I've heard that you're the best chef in here. Could you make me your signature meal?"), nl,
     write("Chef: Nice words won't be enough. I'am actually pretty tired, if you could bring me some coffee then I'll cook something."), nl,
     write("You: I should have some in my cell, I'll be in a moment."), nl,
     assert(there_is(coffee, table)),
+    assert(waiting_for(coffee)),
     !, nl.
 
 dialogue(chef) :-
@@ -545,6 +559,10 @@ dialogue(chef) :-
     quest_done(all_quests, chef),
     write("You: Hi, I..."), nl,
     write("Chef: Don't have time for you now, get lost."), !, nl.
+
+dialogue(chef) :-
+    write("You: Hi, I..."), nl,
+    write("Chef: Bring me my coffee..."), !, nl.
 
 talk(Person) :-
     nl, write("There is no one named "), write(Person), write(" here."), nl.
@@ -592,7 +610,7 @@ give(Item, gym_guy) :-
     Item = great_meal,
     retract(holding(Item)),
     assert(quest_done(meal_quest, gym_guy)),
-    write("Gym Guy: Just on time, give me that."), nl,
+    write("Gym Guy: Just on time, I'm hungry as hell."), nl,
     write("You hand the meal to the Gym Guy."), nl,
     !, nl.
 
@@ -637,10 +655,34 @@ give(Item, gym_guy) :-
     write("Chef: You don't have the coffee."), nl,
     !, nl.
 
+give(Item, showering_prisoner) :-
+    at(Place),
+    there_is(showering_prisoner, Place),
+    holding(Item),
+    Item = towel,
+    retract(holding(Item)),
+    assert(quest_done(towel_quest, showering_prisoner)),
+    write("Prisoner: Oh, there you are. Gimmie the towel."), nl,
+    write("You hand the towel to the Showering Prisoner."), nl,
+    !, nl.
+
+give(Item, showering_prisoner) :-
+    at(Place),
+    there_is(showering_prisoner, Place),
+    holding(Item),
+    Item \= towel,
+    write("Prisoner: I don't want that item."), nl,
+    !, nl.
+
+give(Item, showering_prisoner) :-
+    at(Place),
+    there_is(showering_prisoner, Place),
+    \+ holding(Item),
+    write("Prisoner: You don't have the towel."), nl,
+    !, nl.
+
 give(_, _) :-
     nl, write("This person doesn't want that item."), nl.
-
-
 /* This rule describes how the number of picked up cigarettes increases */
 
 inventory :-
