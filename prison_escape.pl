@@ -349,6 +349,7 @@ take(towel, Object) :-
     \+ there_is(gym_guy, gym),
     retract(there_is(towel, Object)),
     assert(holding(towel)),
+    write("OK."),
     !, nl.
 
 
