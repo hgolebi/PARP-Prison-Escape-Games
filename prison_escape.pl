@@ -512,7 +512,7 @@ dialogue(gym_guy) :-
 
 dialogue(gym_guy) :-
     write("You: Hi, I..."), nl,
-    write("Gym Guy: Bring me my meal..."), !, nl.
+    write("Gym Guy: I'm starving..."), !, nl.
 
 dialogue(showering_prisoner) :-
     \+ waiting_for(towel),
@@ -521,8 +521,8 @@ dialogue(showering_prisoner) :-
     write("You: I was just.."), nl,    
     write("Prisoner: Get out now!! Or actually, wait.. Bring me a towel!"), nl,
     write("You: Why would I?"), nl,
-    write("Prisoner: You dare to ask?!"), nl
-    write("You: I'm not going to do this for free."), nl
+    write("Prisoner: You dare to ask?!"), nl,
+    write("You: I'm not going to do this for free."), nl,
     write("Prisoner: Fine, if you decide to help me I'll give you something in return."), nl,   
     assert(waiting_for(towel)), 
     !, nl. 
