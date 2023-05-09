@@ -435,12 +435,14 @@ dialogue(old_man) :-
     !, nl.
 
 dialogue(old_man) :-
+    \+ waiting_for(cigarettes),
     quest_done(quest1, old_man),
     (\+ quest_done(quest2, old_man)),
     write("You: Okey, could you give me some advice now?"), nl,
     write("Old Man: Alright. There is a hole in the wall by the 16th pole on a prison yard."), nl,
     write("You: But wait, the lights are on, everything will be visible."), nl,
     write("Old Man: I don't give free information. Bring 5 more cigarettes."),
+    assert(waiting_for(cigarettes)),
     !, nl.
 
 dialogue(old_man) :-
