@@ -1,4 +1,4 @@
-/* Andrew Tate Prison Escape, by Hubert Gołębiowski and Jakub Rozkosz. */
+/* Prison Escape, by Hubert Gołębiowski and Jakub Rozkosz. */
 
 :- dynamic at/1, there_is/2, holding/1, quest_done/2, cigarettes/1, locked/1, distracted/1, borders/2, waiting_for/1.
 :- retractall(at(_)), retractall(there_is(_,_)), retractall(holding(_)), retractall(cigarettes(_)), retractall(quest_done(_,_)), locked(_).
@@ -792,6 +792,6 @@ commands :-
         nl.
 
 start :-
-    nl, write("Welcome to Andrew Tate Prison Escape"), nl,
+    nl, write("Welcome to Prison Escape"), nl,
     commands,
     look.
