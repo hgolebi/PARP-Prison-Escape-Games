@@ -493,6 +493,7 @@ dialogue(gym_guy) :-
 dialogue(gym_guy) :-
     \+ quest_done(all_quests, gym_guy),
     quest_done(meal_quest, gym_guy),
+    nl,
     write("You: So, will you help me with your muscles?"), nl,
     write("Gym Guy: Yeah, the meal was great. Take me to the place."), nl,
     write("You and the Gym Guy went to the ventilation grid and broke it."), nl,
@@ -507,10 +508,12 @@ dialogue(gym_guy) :-
 
 dialogue(gym_guy) :-
     quest_done(all_quests, gym_guy),
+    nl,
     write("You: Hi, I..."), nl,
     write("Gym Guy: Don't have time for you now, get lost."), !, nl.
 
 dialogue(gym_guy) :-
+    nl,
     write("You: Hi, I..."), nl,
     write("Gym Guy: I'm starving..."), !, nl.
 
@@ -545,16 +548,19 @@ dialogue(showering_prisoner) :-
 
 dialogue(showering_prisoner) :-
     quest_done(all_quests, showering_prisoner),
+    nl,
     write("You: Hi, I..."), nl,
     write("Prisoner: Don't have time for you now, get lost."), !, nl.
 
 dialogue(showering_prisoner) :-
+    nl,
     write("You: Hi, I..."), nl,
     write("Prisoner: Bring me my towel..."), !, nl.
 
 dialogue(chef) :-
     \+ waiting_for(coffee),
     (\+ quest_done(coffee_quest, chef)),
+    nl,
     write("You: Hi! I've heard that you're the best chef in here. Could you make me your signature meal?"), nl,
     write("Chef: Nice words won't be enough. I'am actually pretty tired, if you could bring me some coffee then I'll cook something."), nl,
     write("You: I should have some in my cell, I'll be in a moment."), nl,
@@ -565,6 +571,7 @@ dialogue(chef) :-
 dialogue(chef) :-
     \+ quest_done(all_quests, chef),
     quest_done(coffee_quest, chef),
+    nl,
     write("You: Now you're quite caffenaited, aren't you?"), nl,
     write("Chef: Yeah, thanks. I'll cook something quickly."), nl,
     write("After few minutes chef hands you a hot meal."), nl,
@@ -575,10 +582,12 @@ dialogue(chef) :-
 
 dialogue(chef) :-
     quest_done(all_quests, chef),
+    nl,
     write("You: Hi, I..."), nl,
     write("Chef: Don't have time for you now, get lost."), !, nl.
 
 dialogue(chef) :-
+    nl,
     write("You: Hi, I..."), nl,
     write("Chef: Bring me my coffee..."), !, nl.
 
