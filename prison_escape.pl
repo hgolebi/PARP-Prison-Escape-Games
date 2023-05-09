@@ -170,7 +170,7 @@ go(ventilation) :-
     retract(at(hallway)),
     assert(at(ventilation)),
     retractall(borders(ventilation, shed)),
-    nl, write("It is too dark in here, so you cannot see the entrance to shed. Flashlight with batteries might help."), nl,
+    nl, write("It is too dark in here. You cannot see anything. Maybe with a working flashlight you will be able to see more."), nl,
     !, look.
 
 go(Destination) :-
@@ -283,12 +283,12 @@ investigate(old_man) :-
 
 investigate(pole16) :-
     at(prison_yard),
-    nl, write("There is a hole in the wall just next to pole16. You can try to escape (type 'escape.')"), nl,
+    nl, write("There is a hole in the wall just next to pole16. Type 'escape.' to escape the prison"), nl,
     !, nl.
 
 investigate(fuse_box) :-
     at(shed),
-    nl, write("Inside the fuse box are switchers to cut off the light. You can try doing this. (type 'blow_fuses.')"),
+    nl, write("Inside the fuse box are switchers to cut off the light. Type 'blow_fuses.' to cut off the power supply."),
     !, nl.
 
 investigate(Object) :-
@@ -324,6 +324,15 @@ empty(Object) :-
 
 /* These rules describe how to pick up an object. */
 
+take(flashlight, Object) :-
+    at(Place),
+    there_is(Object, Place),
+    there_is(flashlight, Object),
+    retract(there_is(flashlight, Object)),
+    assert(holding(flashlight)),
+    write("You picked up a flashlight. Looks like it need batteries to work."),
+    !, nl.
+
 take(playboy_magazine, Object) :-
     at(Place),
     there_is(Object, Place),
@@ -331,7 +340,9 @@ take(playboy_magazine, Object) :-
     retract(there_is(playboy_magazine, Object)),
     assert(holding(playboy_magazine)),
     nl, write("You: Cool magazine, maybe I can use it to distract the guard."), nl,
-    nl, write("type leave(playboy_magazine, Place). to leave the magazine"), nl,
+    nl, write("Type 'leave(playboy_magazine, Place).' to leave the magazine in some place"), nl,
+    write("You have to be in an adjacent room."), nl,
+
     !, nl.
 
 take(towel, Object) :-
@@ -505,6 +516,7 @@ dialogue(gym_guy) :-
     retract(there_is(ventilation_grid, hallway)),
     retract(locked(ventilation)),
     assert(quest_done(all_quests, gym_guy)),
+    look,
     !, nl.
 
 dialogue(gym_guy) :-
@@ -540,9 +552,9 @@ dialogue(showering_prisoner) :-
     write("Prisoner: Do you want some batteries?"), nl,
     write("You: Why would I need batteries?"), nl,
     write("Prisoner: I dunno, maybe to power up a flashlight or something.."), nl,
-    write("You: Fine, give me those batteries!"), nl,
+    write("You: Hmmm... Okay, give me those batteries!"), nl,
     write("Prisoner: You can find them under a pillow in cell 3."), nl,
-    write("You: Oh, you don't have them on you, right.."), nl,
+    write("You: Oh, you don't have them on you..."), nl,
     assert(there_is(pillow, cell3)),
     assert(quest_done(all_quests, showering_prisoner)),
     !, nl.
@@ -594,7 +606,7 @@ dialogue(chef) :-
 
 /* These rules describe how to give an item to a person */
 give(cigarette, _) :-
-    nl, write("to give someone cigarettes, type give(cigarettes, Person)."), nl,
+    nl, write("to give someone cigarettes, type 'give(cigarettes, Person).'"), nl,
     !, nl.
 
 give(cigarettes, old_man) :-
@@ -750,7 +762,7 @@ game_over :-
     retractall(holding(_)),
     assert(at(isolation_ward)),
     nl, write("YOU GOT CAUGHT!"), nl,
-    nl, write("type restart. to start over again"), nl.
+    nl, write("type 'restart.' to start over again"), nl.
 
 finish :-
     nl,
