@@ -730,7 +730,9 @@ give(Item, showering_prisoner) :-
 
 give(_, _) :-
     nl, write("This person doesn't want that item."), nl.
-/* This rule describes how the number of picked up cigarettes increases */
+
+
+/* This rule describes how to display inventory's contents and how the number of picked up cigarettes increases */
 
 inventory :-
     nl, write("You have: "), nl,
@@ -753,6 +755,8 @@ increase_cigarettes(N) :-
     NewCount is Count + N,
     assert(cigarettes(NewCount)).
 
+
+/* These rules are responsible for finishing/restarting the game */
 restart :-
     make,
     start.
