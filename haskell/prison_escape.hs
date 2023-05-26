@@ -202,47 +202,45 @@ availableDestinations place = do
   destinations <- readIORef world >>= return . getDestinations
   putStrLn $ intercalate "\n" $ map (\dest -> "-> " ++ show dest) (filter (\(src, _) -> src == place) destinations)
 
--- Rule: Go to guard_room
+-- Rules: Go to guard_room, Go to ventilation, Go to other destinations
 go :: Location -> World -> IO ()
-go GuardRoom world = do
+go location world = do
   currentLocation <- readIORef world >>= return . getLocation
   guardDistracted <- readIORef world >>= return . isGuardDistracted
-  if currentLocation `elem` borders && not guardDistracted then do
-    putStrLn "Oh no, there is a guard!"
-    putStrLn "I probably should've distracted him first."
-    gameOver
-  else do
-    putStrLn "You can't go there!"
-go GuardRoom _ = return ()
-
--- Rule: Go to ventilation
-go :: Location -> World -> IO ()
-go Ventilation world = do
-  currentLocation <- readIORef world >>= return . getLocation
   ventilationLocked <- readIORef world >>= return . isVentilationLocked
   flashlightHeld <- readIORef world >>= return . isFlashlightHeld
   batteriesHeld <- readIORef world >>= return . isBatteriesHeld
-  if currentLocation == Hallway && currentLocation `elem` borders && not ventilationLocked && flashlightHeld && batteriesHeld then do
-    modifyIORef world (\world' -> world' { location = Ventilation, borders = borders ++ [(Ventilation, Shed)] })
-    look world
-  else if currentLocation == Hallway && currentLocation `elem` borders && not ventilationLocked then do
-    modifyIORef world (\world' -> world' { location = Ventilation, borders = filter (/= (Ventilation, Shed)) borders })
-    putStrLn "It is too dark in here. You cannot see anything. Maybe with a working flashlight you will be able to see more."
-    look world
-  else
-    putStrLn "You can't go there!"
 
--- Rule: Go to other destinations
-go :: Location -> World -> IO ()
-go destination world = do
-  currentLocation <- readIORef world >>= return . getLocation
-  if currentLocation `elem` borders && not (isLocked destination) then do
-    modifyIORef world (\world' -> world' { location = destination })
-    look world
-  else if currentLocation `elem` borders && isLocked destination then
-    putStrLn "This place is locked."
-  else
-    putStrLn "You can't go there!"
+  case (location, currentLocation) of
+    (GuardRoom, GuardRoom) -> do
+      if currentLocation `elem` borders && not guardDistracted then do
+        putStrLn "Oh no, there is a guard!"
+        putStrLn "I probably should've distracted him first."
+        gameOver
+      else do
+        putStrLn "You can't go there!"
+
+    (Ventilation, Hallway) -> do
+      if currentLocation `elem` borders && not ventilationLocked then do
+        if flashlightHeld && batteriesHeld then do
+          modifyIORef world (\world' -> world' { location = Ventilation, borders = borders ++ [(Ventilation, Shed)] })
+          look world
+        else do
+          modifyIORef world (\world' -> world' { location = Ventilation, borders = filter (/= (Ventilation, Shed)) borders })
+          putStrLn "It is too dark in here. You cannot see anything. Maybe with a working flashlight you will be able to see more."
+          look world
+      else do
+        putStrLn "You can't go there!"
+
+    (_, _) -> do
+      if currentLocation `elem` borders && not (isLocked location) then do
+        modifyIORef world (\world' -> world' { location = location })
+        look world
+      else if currentLocation `elem` borders && isLocked location then
+        putStrLn "This place is locked."
+      else
+        putStrLn "You can't go there!"
+
 
 -- Debug: Teleport to a location
 debugGo :: Location -> World -> IO ()
