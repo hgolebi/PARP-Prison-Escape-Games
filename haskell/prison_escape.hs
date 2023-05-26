@@ -1,4 +1,6 @@
 import Data.IORef
+import Control.Monad (forM_)
+import System.Exit (exitSuccess)
 
 -- Dynamic facts
 data DynamicFact = At Location | ThereIs Item Location | Holding Item | QuestDone Item Location | Cigarettes Item | Locked Location
@@ -44,13 +46,13 @@ initializeWorld :: World -> IO ()
 initializeWorld world = writeIORef world initialFacts
 
 -- Objects in rooms definition
-data Item = OccupiedBed | SmallToilet | Teapot | OccupiedBed2 | Table | YourBed | OldMansBed | Toilet | BunkBed | BedCabinet | Shelf
+data Object = OccupiedBed | SmallToilet | Teapot | OccupiedBed2 | Table | YourBed | OldMansBed | Toilet | BunkBed | BedCabinet | Shelf
   | VentilationGrid | Desk | TV | Coat | Chair | Oven | Corner | Fridge | Sink | Shower | Shower2 | Shower3 | Shower4 | Cabinet
   | Treadmill | Treadmill2 | Bench | FuseBox | Pole1 | Pole2 | Pole3 | Pole4 | Pole5 | Pole6 | Pole7 | Pole8 | Pole9 | Pole10
   | Pole11 | Pole12 | Pole13 | Pole14 | Pole15 | Pole16 | Pole17 | Pole18 | Pole19 | Pole20 | Pole21
   deriving (Eq, Show)
 
-objectsInRooms :: [(Item, Location)]
+objectsInRooms :: [(Object, Location)]
 objectsInRooms =
   [ (OccupiedBed, Cell1)
   , (SmallToilet, Cell1)
@@ -105,16 +107,23 @@ objectsInRooms =
   , (Pole21, PrisonYard)
   ]
 
--- W przepisanej wersji użyłem typów danych i referencji IORef, aby odzwierciedlić dynamiczne fakty gry. 
--- Funkcja newWorld tworzy nowy stan świata gry, a initializeWorld inicjalizuje go początkowymi faktami.
--- Zdefiniowałem również typy danych Location dla lokacji w grze. Funkcja borders określa, czy dwie lokacje sąsiadują ze sobą.
--- Dodatkowo, utworzyłem listę initialFacts, która zawiera początkowe fakty gry. Funkcja initializeWorld zapisuje te fakty w stanie świata.
--- Należy pamiętać, że ta wersja w Haskellu nie uwzględnia jeszcze interakcji ani logiki gry. Przepisany kod stanowi jedynie podstawę dla dalszego rozwoju gry w Haskellu.
-
 initializeObjects :: World -> IO ()
 initializeObjects world = do
   let facts = map (\(item, location) -> ThereIs item location) objectsInRooms
   modifyIORef world (\facts' -> facts ++ facts')
+
+
+-- W przepisanej wersji użyłem typów danych i referencji IORef, aby odzwierciedlić dynamiczne fakty gry. 
+-- Funkcja newWorld tworzy nowy stan świata gry, a initializeWorld inicjalizuje go początkowymi faktami.
+-- Zdefiniowałem również typy danych Location dla lokacji w grze. Funkcja borders określa, czy dwie lokacje sąsiadują ze sobą.
+-- Dodatkowo, utworzyłem listę initialFacts, która zawiera początkowe fakty gry. Funkcja initializeWorld zapisuje te fakty w stanie świata.
+-- Należy pamiętać, że ta wersja w Haskellu nie uwzględnia jeszcze interakcji ani logiki gry. 
+-- Przepisany kod stanowi jedynie podstawę dla dalszego rozwoju gry w Haskellu.
+
+
+-- People definition
+data Person = OldMan | GymGuy | ShoweringPrisoner | Chef | SleepingGuy | SleepingGuy2
+  deriving (Eq, Show)
 
 -- People in rooms definition
 peopleInRooms :: [(Person, Location)]
@@ -133,8 +142,12 @@ initializePeople world = do
   let facts = map (\(person, location) -> ThereIs person location) peopleInRooms
   modifyIORef world (\facts' -> facts ++ facts')
 
+-- Item definition
+data Item = Poop | Coin | Cigarette | PlayboyMagazine | Flashlight | Cell1Key | Towel | Batteries | GreatMeal | Coffee
+  deriving (Eq, Show)
+
 -- Items locations (in objects) definition
-itemLocations :: [(Item, ItemLocation)]
+itemLocations :: [(Item, Object)]
 itemLocations =
   [ (Poop, Toilet)
   , (Coin, Toilet)
@@ -238,11 +251,11 @@ debugGo place world = do
   look world
 
 -- Odblokuj pomieszczenie
-unlock :: Room -> World -> IO ()
-unlock room world = do
+unlock :: Location -> World -> IO ()
+unlock location world = do
   currentLocation <- getLocation world
-  case (currentLocation, room) of
-    (place, _) | not (isLocked room world) -> putStrLn "To miejsce jest już odblokowane."
+  case (currentLocation, location) of
+    (place, _) | not (isLocked location world) -> putStrLn "To miejsce jest już odblokowane."
     (hallway, Cell1) | isLocked Cell1 world && hasItem Cell1Key world -> do
       modifyIORef world (\world' -> unlockRoom Cell1 world')
       putStrLn "Użyto klucza do odblokowania Cell1."
@@ -252,7 +265,7 @@ unlock room world = do
       putStrLn "Użyto klucza do odblokowania Hallway."
     (cell2, Hallway) | isLocked Hallway world && not (hasItem Cell2Key world) -> putStrLn "Potrzebujesz klucza, aby odblokować te drzwi."
     (hallway, Ventilation) | isLocked Ventilation world -> putStrLn "Jestem za słaby, żeby to odblokować. Może ktoś silny mi pomoże."
-    _ -> putStrLn ("Nie można odblokować " ++ show room ++ ".")
+    _ -> putStrLn ("Nie można odblokować " ++ show location ++ ".")
   putStrLn ""
 
 -- Ucieczka z więzienia
@@ -447,7 +460,7 @@ addDistractedGuard :: World -> World
 addDistractedGuard world = world { attributes = S.insert "distracted" (attributes world) }
 
 -- Rozmowa z postacią
-talk :: Character -> World -> IO World
+talk :: Person -> World -> IO World
 talk "sleeping_guy" world = do
   putStrLn "Sleeping guy: Zzzzz..."
   return world
@@ -668,7 +681,7 @@ give _ _ world = do
   return world
 
 -- This rule describes how to display inventory's contents and how the number of picked up cigarettes increases
-import Control.Monad (forM_)
+-- import Control.Monad (forM_)
 
 inventory :: World -> IO ()
 inventory world = do
@@ -694,7 +707,7 @@ increaseCigarettes n world =
 
 
 --These rules are responsible for finishing/restarting the game
-import System.Exit (exitSuccess)
+-- import System.Exit (exitSuccess)
 
 restart :: World -> IO World
 restart _ = do
