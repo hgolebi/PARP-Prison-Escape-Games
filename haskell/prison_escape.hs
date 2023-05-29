@@ -1,13 +1,17 @@
 import Data.IORef
 import Control.Monad (forM_)
 import System.Exit (exitSuccess)
+import Data.List (intercalate)
+import Data.List (find)
 import qualified Data.Map as M
 import qualified Data.Set as S
+import Data.Maybe (listToMaybe)
 
 
 -- Dynamic facts
-data DynamicFact = At Location | ThereIs Item Location | Holding Item | QuestDone Item Location | Cigarettes Item | Locked Location
-
+data DynamicFact = At Location | ThereIsOL Object Location | ThereIsIO Item Object | ThereIsPL Person Location
+  | Holding Item | QuestDone Item Location | Cigarettes Item | Locked Location | Distracted Person
+ 
 -- type World = IORef [DynamicFact]
 type World = IORef ([DynamicFact], S.Set String)
 
@@ -27,7 +31,7 @@ borders Hallway Cell2 = True
 borders Hallway Cell3 = True
 borders Hallway GuardRoom = True
 borders GuardRoom Hallway = True
-borders GuardRoom Kitchen = TruenewWo
+borders GuardRoom Kitchen = True
 borders GuardRoom ShowerRoom = True
 borders GuardRoom Gym = True
 borders Kitchen GuardRoom = True
@@ -43,8 +47,8 @@ initialFacts =
   [ Locked Cell1
   , Locked Hallway
   , Locked Ventilation
-  , Locked WayToFreedomLightsTurnedOff
   ]
+  -- , Locked WayToFreedomLightsTurnedOff
 
 initializeWorld :: World -> IO ()
 initializeWorld world = writeIORef world initialFacts
@@ -53,7 +57,7 @@ initializeWorld world = writeIORef world initialFacts
 data Object = OccupiedBed | SmallToilet | Teapot | OccupiedBed2 | Table | YourBed | OldMansBed | Toilet | BunkBed | BedCabinet | Shelf
   | VentilationGrid | Desk | TV | Coat | Chair | Oven | Corner | Fridge | Sink | Shower | Shower2 | Shower3 | Shower4 | Cabinet
   | Treadmill | Treadmill2 | Bench | FuseBox | Pole1 | Pole2 | Pole3 | Pole4 | Pole5 | Pole6 | Pole7 | Pole8 | Pole9 | Pole10
-  | Pole11 | Pole12 | Pole13 | Pole14 | Pole15 | Pole16 | Pole17 | Pole18 | Pole19 | Pole20 | Pole21
+  | Pole11 | Pole12 | Pole13 | Pole14 | Pole15 | Pole16 | Pole17 | Pole18 | Pole19 | Pole20 | Pole21 | Pillow
   deriving (Eq, Show)
 
 objectsInRooms :: [(Object, Location)]
@@ -113,7 +117,7 @@ objectsInRooms =
 
 initializeObjects :: World -> IO ()
 initializeObjects world = do
-  let facts = map (\(item, location) -> ThereIs item location) objectsInRooms
+  let facts = map (\(object, location) -> ThereIsOL object location) objectsInRooms
   modifyIORef world (\facts' -> facts ++ facts')
 
 
@@ -143,7 +147,7 @@ peopleInRooms =
 
 initializePeople :: World -> IO ()
 initializePeople world = do
-  let facts = map (\(person, location) -> ThereIs person location) peopleInRooms
+  let facts = map (\(person, location) -> ThereIsPL person location) peopleInRooms
   modifyIORef world (\facts' -> facts ++ facts')
 
 
@@ -176,7 +180,7 @@ itemLocations =
 
 initializeItemLocations :: World -> IO ()
 initializeItemLocations world = do
-  let facts = map (\(item, location) -> ThereIs item location) itemLocations
+  let facts = map (\(item, object) -> ThereIsIO item object) itemLocations
   modifyIORef world (\facts' -> facts ++ facts')
 
 -- Starting in cell2
@@ -186,6 +190,19 @@ startLocation = Cell2
 -- Initialize the number of cigarettes
 initializeCigarettes :: World -> IO ()
 initializeCigarettes world = modifyIORef world (\facts -> (Cigarettes 0) : facts)
+
+-- Rule: get location
+getLocation :: [DynamicFact] -> Maybe Location
+getLocation facts = listToMaybe [loc | At loc <- facts]
+
+-- Rule: check if location is locked
+isLocked :: Location -> [DynamicFact] -> Bool
+isLocked location facts = case find isLockedFact facts of
+  Just _ -> True
+  Nothing -> False
+  where
+    isLockedFact (Locked loc) = loc == location
+    isLockedFact _ = False
 
 -- Rule: Look
 look :: World -> IO ()
@@ -197,63 +214,19 @@ look world = do
   putStrLn "You can go to:"
   availableDestinations currentLocation
 
-listObjects :: Location -> IO ()
-listObjects place = do
-  objects <- readIORef world >>= return . getObjects
-  putStrLn $ intercalate "\n" $ map (\obj -> "* " ++ show obj) (filter (\(_, loc) -> loc == place) objects)
 
-availableDestinations :: Location -> IO ()
-availableDestinations place = do
-  destinations <- readIORef world >>= return . getDestinations
-  putStrLn $ intercalate "\n" $ map (\dest -> "-> " ++ show dest) (filter (\(src, _) -> src == place) destinations)
+listObjects :: World -> Location -> IO ()
+listObjects world place = do
+  (facts, _) <- readIORef world
+  let objects = filter (\fact -> case fact of { ThereIsOL _ loc -> loc == place; _ -> False }) facts
+  putStrLn $ intercalate "\n" $ map (\obj -> "* " ++ show obj) objects
 
 
--- ponizszy kod jest watpliwy
-getLocation :: [DynamicFact] -> Location
-getLocation facts = case find isAtLocation facts of
-  Just (At location) -> location
-  _ -> error "Location not found"
-
-isAtLocation :: DynamicFact -> Bool
-isAtLocation (At _) = True
-isAtLocation _ = False
-
-isGuardDistracted :: [DynamicFact] -> Bool
-isGuardDistracted facts = case find isGuardDistractedFact facts of
-  Just _ -> True
-  _ -> False
-
-isGuardDistractedFact :: DynamicFact -> Bool
-isGuardDistractedFact (ThereIs "DistractedGuard" _) = True
-isGuardDistractedFact _ = False
-
-isVentilationLocked :: [DynamicFact] -> Bool
-isVentilationLocked facts = case find isVentilationLockedFact facts of
-  Just _ -> True
-  _ -> False
-
-isVentilationLockedFact :: DynamicFact -> Bool
-isVentilationLockedFact (Locked Ventilation) = True
-isVentilationLockedFact _ = False
-
-isFlashlightHeld :: [DynamicFact] -> Bool
-isFlashlightHeld facts = case find isFlashlightHeldFact facts of
-  Just _ -> True
-  _ -> False
-
-isFlashlightHeldFact :: DynamicFact -> Bool
-isFlashlightHeldFact (Holding "Flashlight") = True
-isFlashlightHeldFact _ = False
-
-isBatteriesHeld :: [DynamicFact] -> Bool
-isBatteriesHeld facts = case find isBatteriesHeldFact facts of
-  Just _ -> True
-  _ -> False
-
-isBatteriesHeldFact :: DynamicFact -> Bool
-isBatteriesHeldFact (Holding "Batteries") = True
-isBatteriesHeldFact _ = False
--- koniec watpliwosci, znaczy do wszystkiego jest duza watpliwosc xD, ale tu zdecydowanie
+availableDestinations :: World -> Location -> IO ()
+availableDestinations world place = do
+  (facts, _) <- readIORef world
+  let destinations = filter (\fact -> case fact of { At src -> src == place; _ -> False }) facts
+  putStrLn $ intercalate "\n" $ map (\dest -> "-> " ++ show dest) destinations
 
 
 -- Rules: Go to guard_room, Go to ventilation, Go to other destinations
@@ -261,11 +234,11 @@ go :: Location -> World -> IO ()
 go location world = do
   (facts, items) <- readIORef world
   let currentLocation = getLocation facts
-      guardDistracted = isGuardDistracted facts
-      ventilationLocked = Locked Ventilation elem facts
-      flashlightHeld = Holding Flashlight elem facts
-      batteriesHeld = Holding Batteries facts
-      newFacts = At location : filter (\fact -> not (isAtLocation location fact)) facts
+      guardDistracted = Distracted Guard `elem` facts
+      ventilationLocked = Locked Ventilation `elem` facts
+      flashlightHeld = Holding Flashlight `elem` facts
+      batteriesHeld = Holding Batteries `elem` facts
+      newFacts = filter (\fact -> case fact of { At _ -> False; _ -> True }) facts ++ [At location]
 
   case (location, currentLocation) of
     (GuardRoom, GuardRoom) -> do
@@ -315,7 +288,7 @@ debugGo place world = do
 -- Odblokuj pomieszczenie
 unlock :: Location -> World -> IO ()
 unlock location world = do
-  currentLocation <- getLocation world
+  let currentLocation = getLocation facts
   case (currentLocation, location) of
     (place, _) | not (isLocked location world) -> putStrLn "To miejsce jest już odblokowane."
     (hallway, Cell1) | isLocked Cell1 world && hasItem Cell1Key world -> do
@@ -333,7 +306,7 @@ unlock location world = do
 -- Ucieczka z więzienia
 escape :: World -> IO ()
 escape world = do
-  currentLocation <- getLocation world
+  let currentLocation = getLocation facts
   case currentLocation of
     PrisonYard | not (isLocked WayToFreedomLightsTurnedOff world) -> do
       putStrLn "Było całkowicie ciemno i udało ci się uciec z więzienia!"
@@ -348,7 +321,7 @@ escape world = do
 -- Wyłączanie bezpieczników
 blowFuses :: World -> IO ()
 blowFuses world = do
-  currentLocation <- getLocation world
+  let currentLocation = getLocation facts
   if currentLocation == Shed
     then do
       modifyIORef world (\world' -> unlockRoom WayToFreedomLightsTurnedOff world')
@@ -360,28 +333,28 @@ blowFuses world = do
 -- Badanie obiektów
 investigate :: Object -> World -> IO ()
 investigate old_man world = do
-  currentLocation <- getLocation world
+  let currentLocation = getLocation facts
   if currentLocation == Cell2
     then putStrLn "Stary człowiek: Ty brudny szczurze, trzymaj ręce przy sobie!!"
     else putStrLn "Nic do odkrycia tutaj."
   putStrLn ""
 
 investigate pole16 world = do
-  currentLocation <- getLocation world
+  let currentLocation = getLocation facts
   if currentLocation == PrisonYard
     then putStrLn "Obok słupa 16 jest dziura w murze. Wpisz 'escape.' aby uciec z więzienia."
     else putStrLn "Nic do odkrycia tutaj."
   putStrLn ""
 
 investigate fuse_box world = do
-  currentLocation <- getLocation world
+  let currentLocation = getLocation facts
   if currentLocation == Shed
     then putStrLn "Wewnątrz skrzynki z bezpiecznikami znajdują się przełączniki do wyłączania światła. Wpisz 'blow_fuses.' aby odciąć zasilanie."
     else putStrLn "Nic do odkrycia tutaj."
   putStrLn ""
 
 investigate object world = do
-  currentLocation <- getLocation world
+  let currentLocation = getLocation facts
   let items = getItems object currentLocation world
   case items of
     [] -> putStrLn "Nic do odkrycia tutaj."
@@ -429,7 +402,7 @@ getObjectItemsInLocation world location = M.keys $ M.filter (\items -> location 
 -- Podniesienie obiektu
 take :: Item -> Object -> World -> IO World
 take "flashlight" object world = do
-  currentLocation <- getLocation world
+  let currentLocation = getLocation facts
   if thereIs object currentLocation world && thereIs "flashlight" object world
     then do
       let updatedWorld = removeItemFromObject "flashlight" object world
@@ -440,7 +413,7 @@ take "flashlight" object world = do
       return world
 
 take "playboy_magazine" object world = do
-  currentLocation <- getLocation world
+  let currentLocation = getLocation facts
   if thereIs object currentLocation world && thereIs "playboy_magazine" object world
     then do
       let updatedWorld = removeItemFromObject "playboy_magazine" object world
@@ -453,7 +426,7 @@ take "playboy_magazine" object world = do
       return world
 
 take "towel" object world = do
-  currentLocation <- getLocation world
+  let currentLocation = getLocation facts
   if currentLocation == Gym && thereIs object currentLocation world && thereIs "towel" object world
     then do
       let updatedWorld = removeItemFromObject "towel" object world
@@ -471,7 +444,7 @@ take "towel" object world = do
         return world
 
 take item object world = do
-  currentLocation <- getLocation world
+  let currentLocation = getLocation facts
   if thereIs object currentLocation world && thereIs item object world
     then do
       let updatedWorld = removeItemFromObject item object world
@@ -498,8 +471,9 @@ addToInventory item world = world { inventory = item : inventory world }
 -- Odkładanie obiektu
 leave :: Item -> Location -> World -> IO World
 leave "playboy_magazine" "guard_room" world = do
-  currentLocation <- getLocation world
-  if isHolding "playboy_magazine" world && currentLocation == Hallway
+  let currentLocation = getLocation facts
+      magazineHeld = Holding PlayboyMagazine `elem` facts
+  if magazineHeld && currentLocation == Hallway
     then do
       let updatedWorld = removeFromInventory "playboy_magazine" world
       putStrLn "Zostawiłeś magazyn w pokoju strażnika. Wygląda na to, że strażnik jest rozproszony ;)"
@@ -509,7 +483,7 @@ leave "playboy_magazine" "guard_room" world = do
       return world
 
 leave "playboy_magazine" destination world = do
-  currentLocation <- getLocation world
+  let currentLocation = getLocation facts
   if currentLocation /= destination || not (isAdjacent currentLocation destination)
     then do
       putStrLn "Jesteś zbyt daleko."
