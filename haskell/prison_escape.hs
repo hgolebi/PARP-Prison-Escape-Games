@@ -1,11 +1,15 @@
 import Data.IORef
 import Control.Monad (forM_)
 import System.Exit (exitSuccess)
+import qualified Data.Map as M
+import qualified Data.Set as S
+
 
 -- Dynamic facts
 data DynamicFact = At Location | ThereIs Item Location | Holding Item | QuestDone Item Location | Cigarettes Item | Locked Location
 
-type World = IORef [DynamicFact]
+-- type World = IORef [DynamicFact]
+type World = IORef ([DynamicFact], S.Set String)
 
 newWorld :: IO World
 newWorld = newIORef []
@@ -23,7 +27,7 @@ borders Hallway Cell2 = True
 borders Hallway Cell3 = True
 borders Hallway GuardRoom = True
 borders GuardRoom Hallway = True
-borders GuardRoom Kitchen = True
+borders GuardRoom Kitchen = TruenewWo
 borders GuardRoom ShowerRoom = True
 borders GuardRoom Gym = True
 borders Kitchen GuardRoom = True
@@ -122,7 +126,7 @@ initializeObjects world = do
 
 
 -- People definition
-data Person = OldMan | GymGuy | ShoweringPrisoner | Chef | SleepingGuy | SleepingGuy2
+data Person = OldMan | GymGuy | ShoweringPrisoner | Chef | SleepingGuy | SleepingGuy2 | Guard
   deriving (Eq, Show)
 
 -- People in rooms definition
@@ -141,6 +145,7 @@ initializePeople :: World -> IO ()
 initializePeople world = do
   let facts = map (\(person, location) -> ThereIs person location) peopleInRooms
   modifyIORef world (\facts' -> facts ++ facts')
+
 
 -- Item definition
 data Item = Poop | Coin | Cigarette | PlayboyMagazine | Flashlight | Cell1Key | Towel | Batteries | GreatMeal | Coffee
@@ -202,18 +207,69 @@ availableDestinations place = do
   destinations <- readIORef world >>= return . getDestinations
   putStrLn $ intercalate "\n" $ map (\dest -> "-> " ++ show dest) (filter (\(src, _) -> src == place) destinations)
 
+
+-- ponizszy kod jest watpliwy
+getLocation :: [DynamicFact] -> Location
+getLocation facts = case find isAtLocation facts of
+  Just (At location) -> location
+  _ -> error "Location not found"
+
+isAtLocation :: DynamicFact -> Bool
+isAtLocation (At _) = True
+isAtLocation _ = False
+
+isGuardDistracted :: [DynamicFact] -> Bool
+isGuardDistracted facts = case find isGuardDistractedFact facts of
+  Just _ -> True
+  _ -> False
+
+isGuardDistractedFact :: DynamicFact -> Bool
+isGuardDistractedFact (ThereIs "DistractedGuard" _) = True
+isGuardDistractedFact _ = False
+
+isVentilationLocked :: [DynamicFact] -> Bool
+isVentilationLocked facts = case find isVentilationLockedFact facts of
+  Just _ -> True
+  _ -> False
+
+isVentilationLockedFact :: DynamicFact -> Bool
+isVentilationLockedFact (Locked Ventilation) = True
+isVentilationLockedFact _ = False
+
+isFlashlightHeld :: [DynamicFact] -> Bool
+isFlashlightHeld facts = case find isFlashlightHeldFact facts of
+  Just _ -> True
+  _ -> False
+
+isFlashlightHeldFact :: DynamicFact -> Bool
+isFlashlightHeldFact (Holding "Flashlight") = True
+isFlashlightHeldFact _ = False
+
+isBatteriesHeld :: [DynamicFact] -> Bool
+isBatteriesHeld facts = case find isBatteriesHeldFact facts of
+  Just _ -> True
+  _ -> False
+
+isBatteriesHeldFact :: DynamicFact -> Bool
+isBatteriesHeldFact (Holding "Batteries") = True
+isBatteriesHeldFact _ = False
+-- koniec watpliwosci, znaczy do wszystkiego jest duza watpliwosc xD, ale tu zdecydowanie
+
+
 -- Rules: Go to guard_room, Go to ventilation, Go to other destinations
 go :: Location -> World -> IO ()
 go location world = do
-  currentLocation <- readIORef world >>= return . getLocation
-  guardDistracted <- readIORef world >>= return . isGuardDistracted
-  ventilationLocked <- readIORef world >>= return . isVentilationLocked
-  flashlightHeld <- readIORef world >>= return . isFlashlightHeld
-  batteriesHeld <- readIORef world >>= return . isBatteriesHeld
+  (facts, items) <- readIORef world
+  let currentLocation = getLocation facts
+      guardDistracted = isGuardDistracted facts
+      ventilationLocked = Locked Ventilation elem facts
+      flashlightHeld = Holding Flashlight elem facts
+      batteriesHeld = Holding Batteries facts
+      newFacts = At location : filter (\fact -> not (isAtLocation location fact)) facts
 
   case (location, currentLocation) of
     (GuardRoom, GuardRoom) -> do
-      if currentLocation `elem` borders && not guardDistracted then do
+      if location `borders` currentLocation && not guardDistracted then do
         putStrLn "Oh no, there is a guard!"
         putStrLn "I probably should've distracted him first."
         gameOver
@@ -221,22 +277,22 @@ go location world = do
         putStrLn "You can't go there!"
 
     (Ventilation, Hallway) -> do
-      if currentLocation `elem` borders && not ventilationLocked then do
+      if location `borders` currentLocation && not ventilationLocked then do
         if flashlightHeld && batteriesHeld then do
-          modifyIORef world (\world' -> world' { location = Ventilation, borders = borders ++ [(Ventilation, Shed)] })
+          writeIORef world (newFacts, items)
           look world
         else do
-          modifyIORef world (\world' -> world' { location = Ventilation, borders = filter (/= (Ventilation, Shed)) borders })
+          writeIORef world (newFacts, items)
           putStrLn "It is too dark in here. You cannot see anything. Maybe with a working flashlight you will be able to see more."
           look world
       else do
         putStrLn "You can't go there!"
 
     (_, _) -> do
-      if currentLocation `elem` borders && not (isLocked location) then do
-        modifyIORef world (\world' -> world' { location = location })
+      if location `borders` currentLocation && not (isLocked location) then do
+        writeIORef world (newFacts, items)
         look world
-      else if currentLocation `elem` borders && isLocked location then
+      else if location `borders` currentLocation && isLocked location then
         putStrLn "This place is locked."
       else
         putStrLn "You can't go there!"
@@ -245,8 +301,16 @@ go location world = do
 -- Debug: Teleport to a location
 debugGo :: Location -> World -> IO ()
 debugGo place world = do
-  modifyIORef world (\world' -> world' { location = place })
+  modifyIORef world (\(facts, items) -> (updateFactsLocation facts place, items))
   look world
+  where
+    updateFactsLocation :: [DynamicFact] -> Location -> [DynamicFact]
+    updateFactsLocation facts newLocation = map updateFact facts
+      where
+        updateFact :: DynamicFact -> DynamicFact
+        updateFact (At _) = At newLocation
+        updateFact fact = fact
+
 
 -- Odblokuj pomieszczenie
 unlock :: Location -> World -> IO ()
@@ -291,6 +355,7 @@ blowFuses world = do
       putStrLn "Wyłączyłeś zasilanie w więzieniu."
     else putStrLn "Nie możesz tu wyłączyć bezpieczników."
   putStrLn ""
+
 
 -- Badanie obiektów
 investigate :: Object -> World -> IO ()
@@ -418,9 +483,13 @@ take item object world = do
 
 -- Usuwa przedmiot z obiektu
 removeItemFromObject :: Item -> Object -> World -> World
-removeItemFromObject item object world = case M.lookup object (items world) of
-  Just items -> world { items = M.insert object (delete item items) (items world) }
-  Nothing -> world
+removeItemFromObject item object world = do
+  modifyIORef world (\(facts, objectsSet) -> (filter (not . isTargetFact) facts, objectsSet))
+  where
+    isTargetFact (Holding i) = i == item && isTargetObject i
+    isTargetFact _ = False
+    isTargetObject (Flashlight) = object == Desk
+    isTargetObject _ = False
 
 -- Dodaje przedmiot do inwentarza gracza
 addToInventory :: Item -> World -> World
@@ -454,8 +523,13 @@ leave _ _ world = do
   return world
 
 -- Dodaje atrybut "distracted" do strażnika
+-- addDistractedGuard :: World -> World
+-- addDistractedGuard world = world { attributes = S.insert "distracted" (attributes world) }
 addDistractedGuard :: World -> World
-addDistractedGuard world = world { attributes = S.insert "distracted" (attributes world) }
+addDistractedGuard world = do
+  modifyIORef world (\(facts, attrs) -> (facts, S.insert "distracted" attrs))
+  world
+
 
 -- Rozmowa z postacią
 talk :: Person -> World -> IO World
