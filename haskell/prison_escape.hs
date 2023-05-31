@@ -14,7 +14,7 @@ data DynamicFact = At Location | ThereIsOL Object Location | ThereIsIO Item Obje
   | Waiting Person | Borders Location Location
  
 -- type World = IORef [DynamicFact]
-type World = IORef ([DynamicFact], S.Set String)  -- contains facts and set of items (inventory)
+type World = IORef ([DynamicFact], M.Map Item Int)  -- contains facts and map of items and their quantity (inventory)
 
 newWorld :: IO World
 newWorld = newIORef []
@@ -50,8 +50,8 @@ bordersInMap =
 
 initializeBorders :: World -> IO ()
 initializeBorders world = do
-  let facts = map (\(object, location) -> ThereIsOL object location) objectsInRooms
-  modifyIORef world (\facts' -> facts ++ facts')
+  let facts = map (\(location1, location2) -> Borders location1 location2) bordersInMap
+  modifyIORef world (\(facts', items) -> (facts' ++ facts, items))
 
 initialFacts :: [DynamicFact]
 initialFacts =
@@ -128,8 +128,8 @@ objectsInRooms =
 
 initializeObjects :: World -> IO ()
 initializeObjects world = do
-  let facts = map (\(location1, location2) -> Borders location1 location2) bordersInMap
-  modifyIORef world (\facts' -> facts ++ facts')
+  let facts = map (\(object, location) -> ThereIsOL object location) objectsInRooms
+  modifyIORef world (\(facts', items) -> (facts ++ facts', items))
 
 
 -- W przepisanej wersji użyłem typów danych i referencji IORef, aby odzwierciedlić dynamiczne fakty gry. 
@@ -159,7 +159,7 @@ peopleInRooms =
 initializePeople :: World -> IO ()
 initializePeople world = do
   let facts = map (\(person, location) -> ThereIsPL person location) peopleInRooms
-  modifyIORef world (\facts' -> facts ++ facts')
+  modifyIORef world (\(facts', items) -> (facts ++ facts', items))
 
 
 -- Item definition
@@ -174,7 +174,7 @@ itemLocations =
   , (Cigarette, YourBed)
   , (Cigarette, Corner)
   , (Cigarette, BedCabinet)
-  , (Cigarette, SleepingGuy)
+  , (Cigarette, OccupiedBed)
   , (Cigarette, OccupiedBed2)
   , (Cigarette, Coat)
   , (Cigarette, Desk)
@@ -184,7 +184,7 @@ itemLocations =
   , (Cigarette, Bench)
   , (PlayboyMagazine, Shelf)
   , (Flashlight, Desk)
-  , (Cell1Key, Guard)
+  , (Cell1Key, Coat)
   , (Towel, Bench)
   , (Batteries, Pillow)
   ]
@@ -192,49 +192,88 @@ itemLocations =
 initializeItemLocations :: World -> IO ()
 initializeItemLocations world = do
   let facts = map (\(item, object) -> ThereIsIO item object) itemLocations
-  modifyIORef world (\facts' -> facts ++ facts')
+  modifyIORef world (\(facts', items) -> (facts ++ facts', items))
 
 -- Starting in cell2
 startLocation :: Location
 startLocation = Cell2
 
--- Initialize the number of cigarettes
-initializeCigarettes :: World -> IO ()
-initializeCigarettes world = modifyIORef world (\facts -> (Cigarettes 0) : facts)
+-- Rule: get location
+--getLocation :: [DynamicFact] -> Maybe Location
+--getLocation facts = listToMaybe [loc | At loc <- facts]
 
 -- Rule: get location
-getLocation :: [DynamicFact] -> Maybe Location
-getLocation facts = listToMaybe [loc | At loc <- facts]
+getLocation :: [DynamicFact] -> Location
+getLocation facts = case listToMaybe [loc | At loc <- facts] of
+  Just location -> location
+  Nothing -> error "Unable to determine current location"
 
 
 -- Rule: check if location is locked
-isLocked :: Location -> [DynamicFact] -> Bool
-isLocked location facts = case find isLockedFact facts of
-  Just _ -> True
-  Nothing -> False
-  where
-    isLockedFact (Locked loc) = loc == location
-    isLockedFact _ = False
+isLocked :: Location -> World -> IO Bool
+isLocked location world = do
+  (facts, _) <- readIORef world
+  return $ (Locked location) `elem` facts
 
 -- getting items from inventory
-getInventory :: World -> [Item]
-getInventory world =
-  case readIORef world of
-    (_, items) -> items
-
--- Rule: check if there is certain item in inventory
-hasItem :: Item -> World -> Bool
-hasItem item world = do
+getInventory :: World -> IO [Item]
+getInventory world = do
   (_, items) <- readIORef world
+  return (M.keys items)
+
+
+-- getting items and their number from inventory
+getInventoryItemCounts :: World -> IO [(Item, Int)]
+getInventoryItemCounts world = do
+  (_, items) <- readIORef world
+  return (M.toList items)
+
+-- Rule: check if there is a certain item in inventory
+hasItem :: Item -> World -> IO Bool
+hasItem item world = do
+  items <- getInventory world
   return (item `elem` items)
 
 -- adding item to the inventory
+-- addItemToInventory :: Item -> World -> IO ()
+-- addItemToInventory item world = modifyIORef world (\(facts, items) -> (facts, item : items))
+
+-- Dodawanie przedmiotu do mapy z licznikiem
 addItemToInventory :: Item -> World -> IO ()
-addItemToInventory item world = modifyIORef world (\(facts, items) -> (facts, item : items))
+addItemToInventory item world = modifyIORef world (\(facts, items) -> (facts, incrementItem item items))
+
+-- Zwiększanie liczby przedmiotów w mapie
+incrementItem :: Item -> M.Map Item Int -> M.Map Item Int
+incrementItem item items = M.insertWith (+) item 1 items
+
 
 -- removing item from inventory
-removeItem :: Item -> World -> IO ()
-removeItem item world = modifyIORef world (\(facts, items) -> (facts, filter (/= item) items))
+-- removeItem :: Item -> World -> IO ()
+-- removeItem item world = modifyIORef world (\(facts, items) -> (facts, filter (/= item) items))
+
+removeItemFromInventory :: Item -> Int -> World -> IO ()
+removeItemFromInventory item amount world =
+  modifyIORef world (\(facts, items) -> (facts, M.update (subtractCount amount) item items))
+  where
+    subtractCount :: Int -> Int -> Maybe Int
+    subtractCount amount count
+      | count <= amount = Nothing  -- Usunięcie przedmiotu z mapy, jeśli ilość jest mniejsza lub równa żądanej liczbie
+      | otherwise = Just (count - amount)  -- Zmniejszenie liczby przedmiotów o żądaną wartość
+
+
+-- checking whether there is certain number of specified item in inventory
+hasItemCountInInventory :: Item -> Int -> World -> IO Bool
+hasItemCountInInventory item count world = do
+  (_, items) <- readIORef world
+  case M.lookup item items of
+    Just itemCount -> return (itemCount >= count)
+    Nothing -> return False
+
+-- getting item count from inventory
+getItemCount :: Item -> World -> IO (Maybe Int)
+getItemCount item world = do
+  (_, items) <- readIORef world
+  return (M.lookup item items)
 
 -- adding object to location
 addObjectToLocation :: Object -> Location -> World -> IO ()
@@ -247,22 +286,22 @@ addItemToObject item object world = do
   modifyIORef world (\(facts, items) -> (ThereIsIO item object : facts, items))
 
 -- Sprawdza, czy w danej lokalizacji znajduje się dana osoba
-thereIsPersonInLocation :: Person -> Location -> World -> Bool
+thereIsPersonInLocation :: Person -> Location -> World -> IO Bool
 thereIsPersonInLocation person location world = do
   (facts, _) <- readIORef world
-  (ThereIsPL person location) `elem` facts
+  return $ (ThereIsPL person location) `elem` facts
 
 -- Sprawdza, czy w danym obiekcie znajduje się dany przedmiot
-thereIsItemInObject :: Object -> Item -> World -> Bool
-thereIsItemInObject object item world = do
+thereIsItemInObject :: Item -> Object -> World -> IO Bool
+thereIsItemInObject item object world = do
   (facts, _) <- readIORef world
-  (ThereIsIO item object) `elem` facts
+  return $ (ThereIsIO item object) `elem` facts
 
 -- Sprawdza, czy dany obiekt znajduje się w danej lokalizacji
-thereIsObjectInLocation :: Object -> Location -> World -> Bool
+thereIsObjectInLocation :: Object -> Location -> World -> IO Bool
 thereIsObjectInLocation object location world = do
   (facts, _) <- readIORef world
-  (ThereIsOL object location) `elem` facts
+  return $ (ThereIsOL object location) `elem` facts
 
 -- checking if certain quest is done
 -- isQuestDone :: Quest -> Person -> World -> Bool
@@ -270,21 +309,21 @@ thereIsObjectInLocation object location world = do
 --   case readIORef world of
 --     (facts, _) -> any (\fact -> case fact of { Done q p -> q == quest && p == person; _ -> False }) facts
 
-isQuestDone :: Quest -> Person -> World -> Bool
+isQuestDone :: Quest -> Person -> World -> IO Bool
 isQuestDone quest person world = do
   (facts, _) <- readIORef world
-  (Done quest person) `elem` facts
+  return $ (Done quest person) `elem` facts
 
 -- adding fact Done Quest
 setQuestDone :: Quest -> Person -> World -> IO ()
 setQuestDone quest person world = do
   modifyIORef world (\(facts, items) -> (Done quest person : facts, items))
 
--- Rule: checking if certain person is waiting
-isWaitingFor :: Person -> World -> Bool
+-- checking if certain person is waiting
+isWaitingFor :: Person -> World -> IO Bool
 isWaitingFor person world = do
   (facts, _) <- readIORef world
-  Waiting person `elem` facts
+  return $ Waiting person `elem` facts
 
 -- adds a fact that someone is waiting for
 setWaitingFor :: Person -> World -> IO ()
@@ -297,10 +336,10 @@ setBorder location1 location2 world = do
   modifyIORef world (\(facts, items) -> (Borders location1 location2 : facts, items))
 
 -- checking if one location borders with other
-doesBorder :: Location -> Location -> World -> Bool
+doesBorder :: Location -> Location -> World -> IO Bool
 doesBorder location1 location2 world = do
   (facts, _) <- readIORef world
-  (Borders location1 location2) `elem` facts
+  return $ (Borders location1 location2) `elem` facts
 
 
 
@@ -311,20 +350,20 @@ look world = do
   let currentLocation = getLocation facts
   putStrLn $ "You're currently at " ++ show currentLocation
   putStrLn "You can see:"
-  listObjects currentLocation
+  listObjects currentLocation world
   putStrLn "You can go to:"
-  availableDestinations currentLocation
+  availableDestinations currentLocation world
 
 
-listObjects :: World -> Location -> IO ()
-listObjects world place = do
+listObjects :: Location -> World -> IO ()
+listObjects place world = do
   (facts, _) <- readIORef world
   let objects = filter (\fact -> case fact of { ThereIsOL _ loc -> loc == place; _ -> False }) facts
   putStrLn $ intercalate "\n" $ map (\obj -> "* " ++ show obj) objects
 
 
-availableDestinations :: World -> Location -> IO ()
-availableDestinations world place = do
+availableDestinations :: Location -> World -> IO ()
+availableDestinations place world = do
   (facts, _) <- readIORef world
   let destinations = filter (\fact -> case fact of { At src -> src == place; _ -> False }) facts
   putStrLn $ intercalate "\n" $ map (\dest -> "-> " ++ show dest) destinations
@@ -335,15 +374,16 @@ go :: Location -> World -> IO ()
 go location world = do
   (facts, items) <- readIORef world
   let currentLocation = getLocation facts
-      guardDistracted = Distracted Guard `elem` facts
-      ventilationLocked = isLocked Ventilation facts
-      flashlightHeld = hasItem Flashlight world
-      batteriesHeld = hasItem Batteries world
+  flashlightHeld <- hasItem Flashlight world
+  batteriesHeld <- hasItem Batteries world
+  borderExists <- doesBorder location currentLocation world
+  locationLocked <- isLocked location world
+  let guardDistracted = Distracted Guard `elem` facts
       newFacts = filter (\fact -> case fact of { At _ -> False; _ -> True }) facts ++ [At location]
 
   case (location, currentLocation) of
-    (GuardRoom, GuardRoom) -> do
-      if doesBorder location currentLocation world && not guardDistracted then do
+    (Hallway, GuardRoom) -> do
+      if borderExists && not guardDistracted then do
         putStrLn "Oh no, there is a guard!"
         putStrLn "I probably should've distracted him first."
         gameOver
@@ -351,7 +391,7 @@ go location world = do
         putStrLn "You can't go there!"
 
     (Ventilation, Hallway) -> do
-      if doesBorder location currentLocation world && not ventilationLocked then do
+      if borderExists && not locationLocked then do
         if flashlightHeld && batteriesHeld then do
           writeIORef world (newFacts, items)
           look world
@@ -363,10 +403,10 @@ go location world = do
         putStrLn "You can't go there!"
 
     (_, _) -> do
-      if doesBorder location currentLocation world && not (isLocked location) then do
+      if borderExists && not locationLocked then do
         writeIORef world (newFacts, items)
         look world
-      else if doesBorder location currentLocation world && isLocked location then
+      else if borderExists && locationLocked then
         putStrLn "This place is locked."
       else
         putStrLn "You can't go there!"
@@ -390,26 +430,27 @@ debugGo place world = do
 unlockLocation :: Location -> World -> IO ()
 unlockLocation location world = do
   (facts, items) <- readIORef world
-  let currentLocation = getLocation facts
-      newFacts = filter (\fact -> case fact of { At _ -> False; _ -> True }) facts ++ [At location]
-  writeIORef world (newFacts, items)
-  putStrLn $ "Unlocked location: " ++ show location
+  let updatedFacts = filter (\fact -> case fact of { Locked l -> l /= location; _ -> True }) facts
+  writeIORef world (updatedFacts, items)
 
 unlock :: Location -> World -> IO ()
 unlock location world = do
   (facts, items) <- readIORef world
+  locationLocked <- isLocked location world
+  hasCell1Key <- hasItem Cell1Key world
+  hasCell2Key <- hasItem Cell2Key world
   let currentLocation = getLocation facts
   case (currentLocation, location) of
-    (place, _) | not (isLocked location world) -> putStrLn "To miejsce jest już odblokowane."
-    (hallway, Cell1) | isLocked Cell1 world && hasItem Cell1Key world -> do
-      modifyIORef world (\world' -> unlockLocation Cell1 world')
+    (place, _) | not locationLocked -> putStrLn "To miejsce jest już odblokowane."
+    (hallway, Cell1) | locationLocked && hasCell1Key -> do
+      unlockLocation Cell1 world
       putStrLn "Użyto klucza do odblokowania Cell1."
-    (hallway, Cell1) | isLocked Cell1 world && not (hasItem Cell1Key world) -> putStrLn "Potrzebujesz klucza, aby odblokować tę celę."
-    (cell2, Hallway) | isLocked Hallway world && hasItem Cell2Key world -> do
-      modifyIORef world (\world' -> unlockLocation Hallway world')
+    (hallway, Cell1) | locationLocked && not hasCell1Key -> putStrLn "Potrzebujesz klucza, aby odblokować tę celę."
+    (cell2, Hallway) | locationLocked && hasCell2Key -> do
+      unlockLocation Hallway world
       putStrLn "Użyto klucza do odblokowania Hallway."
-    (cell2, Hallway) | isLocked Hallway world && not (hasItem Cell2Key world) -> putStrLn "Potrzebujesz klucza, aby odblokować te drzwi."
-    (hallway, Ventilation) | isLocked Ventilation world -> putStrLn "Jestem za słaby, żeby to odblokować. Może ktoś silny mi pomoże."
+    (cell2, Hallway) | locationLocked && not hasCell2Key -> putStrLn "Potrzebujesz klucza, aby odblokować te drzwi."
+    (hallway, Ventilation) | locationLocked -> putStrLn "Jestem za słaby, żeby to odblokować. Może ktoś silny mi pomoże."
     _ -> putStrLn ("Nie można odblokować " ++ show location ++ ".")
   putStrLn ""
 
@@ -417,14 +458,15 @@ unlock location world = do
 escape :: World -> IO ()
 escape world = do
   (facts, items) <- readIORef world
+  escapeLocked <- isLocked WayToFreedomLightsTurnedOff world
   let currentLocation = getLocation facts
   case currentLocation of
-    PrisonYard | not (isLocked WayToFreedomLightsTurnedOff world) -> do
+    PrisonYard | not escapeLocked -> do
       putStrLn "Było całkowicie ciemno i udało ci się uciec z więzienia!"
       putStrLn "Gratulacje, wygrałeś grę!"
       finish world
-    PrisonYard | isLocked WayToFreedomLightsTurnedOff world -> do
-      putStrLn "Wszystcy strażnicy zobaczyli twoje ruchy, gdy światła zostały włączone."
+    PrisonYard | escapeLocked -> do
+      putStrLn "Wszyscy strażnicy zobaczyli twoje ruchy, gdy światła zostały włączone."
       gameOver world
     _ -> putStrLn "Ha ha ha, nie tak szybko... ucieczka nie będzie taka łatwa."
   putStrLn ""
@@ -436,7 +478,7 @@ blowFuses world = do
   let currentLocation = getLocation facts
   if currentLocation == Shed
     then do
-      modifyIORef world (\world' -> unlockLocation WayToFreedomLightsTurnedOff world')
+      unlockLocation WayToFreedomLightsTurnedOff world
       putStrLn "Wyłączyłeś zasilanie w więzieniu."
     else putStrLn "Nie możesz tu wyłączyć bezpieczników."
   putStrLn ""
@@ -469,151 +511,127 @@ investigate fuse_box world = do
   putStrLn ""
 
 investigate object world = do
-  let objectItems = getObjectItems object world
+  objectItems <- getObjectItems object world
   case objectItems of
     [] -> putStrLn "Nic do odkrycia tutaj."
     _ -> do
-      putStrLn $ "W " ++ object ++ " znajdujesz:"
-      mapM_ (\item -> putStrLn $ "* " ++ item) objectItems
+      putStrLn $ "W " ++ show object ++ " znajdujesz:"
+      mapM_ (\item -> putStrLn $ "* " ++ show item) objectItems
   putStrLn ""
 
 
 -- Zwraca listę przedmiotów znajdujących się w danym obiekcie
-getObjectItems :: Object -> World -> [Item]
+getObjectItems :: Object -> World -> IO [Item]
 getObjectItems object world = do
   (facts, _) <- readIORef world
-  let items = filter (\fact -> case fact of { ThereIsIO item obj -> obj == object; _ -> False }) facts
-  [item | ThereIsIO item _ <- items]
-
-
--- PEWNIE ZLE NAPISANE, ALE NIEPOTRZEBNE WIEC WALIC
--- Sprawdza, czy obiekt jest pusty
--- isEmpty :: Object -> World -> Bool
--- isEmpty object world = not $ any (thereIs object) (getObjectLocations world)
-
--- Sprawdza, czy istnieje przedmiot w danym obiekcie
--- thereIs :: Object -> Location -> World -> Bool
--- thereIs object location world = object `elem` getObjectItems location world
-
--- Zwraca listę obiektów zawierających przedmioty
--- getObjectsWithItems :: World -> [Object]
--- getObjectsWithItems world = nub $ concatMap (getObjectItemsInLocation world) (getObjectLocations world)
-
--- Zwraca listę miejsc, w których znajduje się obiekt
--- getObjectLocations :: World -> [Location]
--- getObjectLocations world = M.keys $ objects world
-
--- Zwraca listę przedmiotów w danym miejscu
--- getObjectItemsInLocation :: World -> Location -> [Object]
--- getObjectItemsInLocation world location = M.keys $ M.filter (\items -> location `elem` items) (items world)
+  let objectItems = [item | ThereIsIO item obj <- facts, obj == object]
+  return objectItems
 
 
 -- Podniesienie obiektu
-take :: Item -> Object -> World -> IO World
+take :: Item -> Object -> World -> IO()
 take Flashlight object world = do
   (facts, _) <- readIORef world
   let currentLocation = getLocation facts
-  if thereIsObjectInLocation object currentLocation world && thereIsItemInObject Flashlight object world
+  objectExistsInLocation <- thereIsObjectInLocation object currentLocation world
+  flashlightExistsInObject <- thereIsItemInObject Flashlight object world
+  if objectExistsInLocation && flashlightExistsInObject
     then do
-      let updatedWorld = removeItemFromObject Flashlight object world
+      removeItemFromObject Flashlight object world
       putStrLn "Podniosłeś latarkę. Wygląda na to, że potrzebuje baterii, aby działać."
-      return $ addItemToInventory Flashlight updatedWorld
+      addItemToInventory Flashlight world
     else do
       putStrLn "Nie widzę tego tutaj."
-      return world
+
 
 take PlayboyMagazine object world = do
   (facts, _) <- readIORef world
   let currentLocation = getLocation facts
-  if thereIsObjectInLocation object currentLocation world && thereIsItemInObject PlayboyMagazine object world
+  objectExistsInLocation <- thereIsObjectInLocation object currentLocation world
+  playboyMagazineExistsInObject <- thereIsItemInObject PlayboyMagazine object world
+  if objectExistsInLocation && playboyMagazineExistsInObject
     then do
-      let updatedWorld = removeItemFromObject PlayboyMagazine object world
+      removeItemFromObject PlayboyMagazine object world
       putStrLn "Ty: Fajny magazyn, może będę mógł go użyć, żeby rozproszyć strażnika."
       putStrLn "Wpisz 'leave(playboy_magazine, Miejsce).' aby zostawić magazyn w jakimś miejscu."
       putStrLn "Musisz być w sąsiednim pomieszczeniu."
-      return $ addItemToInventory PlayboyMagazine updatedWorld
+      addItemToInventory PlayboyMagazine world
     else do
       putStrLn "Nie widzę tego tutaj."
-      return world
 
 take Towel object world = do
   (facts, _) <- readIORef world
   let currentLocation = getLocation facts
-  if currentLocation == Gym && thereIsObjectInLocation object currentLocation world && thereIsItemInObject Towel object world
+  objectExistsInLocation <- thereIsObjectInLocation object currentLocation world
+  towelExistsInObject <- thereIsItemInObject Towel object world
+  personExistsInLocation <- thereIsPersonInLocation GymGuy Gym world
+  if currentLocation == Gym && objectExistsInLocation && towelExistsInObject
     then do
-      let updatedWorld = removeItemFromObject Towel object world
+      removeItemFromObject Towel object world
       putStrLn "Facet na siłowni: Hej, co ty tam robisz?! To moje ręcznik!"
       putStrLn "Ty: Czy mogę go pożyczyć?"
       putStrLn "Facet na siłowni: Zapomnij. Potrzebuję go do treningu."
-      return updatedWorld
-    else if currentLocation == Gym && thereIsObjectInLocation object currentLocation world && not (thereIsPersonInLocation GymGuy Gym world)
+    else if currentLocation == Gym && objectExistsInLocation && not personExistsInLocation
       then do
-        let updatedWorld = removeItemFromObject Towel object world
+        removeItemFromObject Towel object world
         putStrLn "OK."
-        return $ addItemToInventory Towel updatedWorld
+        addItemToInventory Towel world
       else do
         putStrLn "Nie widzę tego tutaj."
-        return world
+
 
 take item object world = do
   (facts, _) <- readIORef world
   let currentLocation = getLocation facts
-  if thereIsObjectInLocation object currentLocation world && thereIsItemInObject item object world
+  objectExistsInLocation <- thereIsObjectInLocation object currentLocation world
+  itemExistsInObject <- thereIsItemInObject item object world
+  if objectExistsInLocation && itemExistsInObject
     then do
-      let updatedWorld = removeItemFromObject item object world
+      removeItemFromObject item object world
       putStrLn "OK."
-      return $ addItemToInventory item updatedWorld
+      addItemToInventory item world
     else do
       putStrLn "Nie widzę tego tutaj."
-      return world
+
 
 -- Usuwa przedmiot z obiektu
-removeItemFromObject :: Item -> Object -> World -> World
+removeItemFromObject :: Item -> Object -> World -> IO ()
 removeItemFromObject item object world = do
-  modifyIORef world (\(facts, items) -> (filter (not . isTargetFact) facts, items))
-  where
-    isTargetFact (ThereIsIO i o) = i == item && isTargetObject o
-    isTargetFact _ = False
-    isTargetObject Desk = object == Desk
-    isTargetObject _ = False
+  modifyIORef world (\(facts, items) -> (removeItemFact item object facts, M.delete item items))
+
+removeItemFact :: Item -> Object -> [DynamicFact] -> [DynamicFact]
+removeItemFact item object facts =
+  filter (\fact -> case fact of { ThereIsIO i o -> i /= item || o /= object; _ -> True }) facts
 
 -- Odkładanie obiektu
-leave :: Item -> Location -> World -> IO World
-leave PlayboyMagazine "guard_room" world = do
-  (facts, _) <- readIORef world
+leave :: Item -> Location -> World -> IO ()
+leave PlayboyMagazine GuardRoom world = do
+  (facts, items) <- readIORef world
+  magazineHeld <- hasItem PlayboyMagazine world
   let currentLocation = getLocation facts
-      magazineHeld = hasItem PlayboyMagazine world
   if magazineHeld && currentLocation == Hallway
     then do
-      let updatedWorld = removeItem PlayboyMagazine world
+      removeItemFromInventory PlayboyMagazine 1 world
       putStrLn "Zostawiłeś magazyn w pokoju strażnika. Wygląda na to, że strażnik jest rozproszony ;)"
-      return $ addDistractedGuard updatedWorld
+      setDistractedPerson Guard world
     else do
       putStrLn "Prawdopodobnie nie powinienem zostawiać tego tam."
-      return world
 
 leave PlayboyMagazine destination world = do
   (facts, _) <- readIORef world
   let currentLocation = getLocation facts
-  if currentLocation /= destination || not (doesBorder destination currentLocation world)
-    then do
-      putStrLn "Jesteś zbyt daleko."
-      return world
-    else do
-      putStrLn "Nie masz tego przedmiotu."
-      return world
+  doesLocationsBorder <- doesBorder destination currentLocation world
+  let currentLocation = getLocation facts
+  if currentLocation /= destination || not doesLocationsBorder
+    then putStrLn "Jesteś zbyt daleko."
+    else putStrLn "Nie masz tego przedmiotu."
 
-leave _ _ world = do
-  putStrLn "Nie masz tego przedmiotu."
-  return world
+leave _ _ _ = putStrLn "Nie masz tego przedmiotu."
 
--- Dodaje atrybut "distracted" do strażnika
--- addDistractedGuard :: World -> World
--- addDistractedGuard world = world { attributes = S.insert "distracted" (attributes world) }
-addDistractedGuard :: World -> World
-addDistractedGuard world = do
-  modifyIORef world (\(facts, attrs) -> (facts, S.insert "distracted" attrs))
-  world
+-- Dodaje atrybut "distracted" do osoby
+setDistractedPerson :: Person -> World -> IO ()
+setDistractedPerson person world = do
+  modifyIORef world (\(facts, items) -> (Distracted person : facts, items))
 
 -- removing person from location
 removePersonFromLocation :: Person -> Location -> World -> IO ()
@@ -627,255 +645,250 @@ removeObjectFromLocation object location world = do
 
 
 -- Rozmowa z postacią
-talk :: Person -> World -> IO World
+talk :: Person -> World -> IO ()
 talk SleepingGuy world = do
   putStrLn "Sleeping guy: Zzzzz..."
-  return world
+  return ()
 
 talk SleepingGuy2 world = do
   putStrLn "Sleeping guy: Zzzzzzzz..."
-  return world
+  return ()
 
 talk Guard world = do
   putStrLn "Guard: Wait, what are you doing here?!"
   gameOver
-  return world
-
-talk OldMan world
-  | not (isQuestDone Quest1 OldMan world) && not (hasItem Cell2Key world) = do
-    putStrLn "You: Psst... I was thinking about escape. Are you in?"
-    putStrLn "Old Man: Escape, huh? It won't be easy. I've been here for years and I'm too old for this."
-    putStrLn "You: Damn... But you probably know this prison quite well. Do you have any advice?"
-    putStrLn "Old Man: Yes, but it will cost. Please bring me 5 cigarettes and we will talk."
-    putStrLn "You: I don't have that much.."
-    putStrLn "Old Man: Here, take that key. Maybe you will find some outside."
-    putStrLn "You: Wait, you had a key to our cell all this time?!"
-    putStrLn "Old Man: Maybe I had, maybe I didn't. That's not important now. Just take the key and find me some cigarettes."
-    putStrLn "You received cell2_key."
-    return $ addItemToInventory Cell2Key world
-
-talk OldMan world
-  | not (isWaitingFor Cigarettes world) && isQuestDone Quest1 OldMan world && not (isQuestDone Quest2 OldMan world) = do
-    putStrLn "You: Okey, could you give me some advice now?"
-    putStrLn "Old Man: Alright. There is a hole in the wall by the 16th pole on a prison yard."
-    putStrLn "You: But wait, the lights are on, everything will be visible."
-    putStrLn "Old Man: I don't give free information. Bring 5 more cigarettes."
-    return $ setWaitingFor OldMan world
-
-talk OldMan world
-  | not (isQuestDone AllQuests OldMan world) && isQuestDone Quest2 OldMan world = do
-    putStrLn "You: What about the light?"
-    putStrLn "Old Man: You can break the ventilation hole in the hallway and get into the room with fuses, where you turn off the light."
-    putStrLn "You: Holy Chicken Trolley, that's my opportunity!!"
-    return $ setBorder Hallway Ventilation world
-
-talk OldMan world
-  | isQuestDone AllQuests OldMan world = do
-    putStrLn "You: Hi, I..."
-    putStrLn "Old Man: Don't have time for you now, get lost."
-    return world
+  return ()
 
 talk OldMan world = do
-  putStrLn "There is no one named Old Man here."
-  return world
-
-talk GymGuy world
-  | not (isWaitingFor GreatMeal world) && isQuestDone Quest2 OldMan world && not (isQuestDone MealQuest GymGuy world) = do
-    putStrLn "You see a strong guy that is exhausted after his training."
-    putStrLn "You: Hey! I have a case. Could I do something for you in return for a small favor?"
-    putStrLn "Gym Guy: You little man, what would you need help for?"
-    putStrLn "You: To break the ventilation hole."
-    putStrLn "Gym Guy: It's a piece of cake for me. Bring me a great meal cause I need to refill my carbs. Then I'll do the job."
-    return $ setWaitingFor GymGuy world
-
-talk GymGuy world
-  | not (isQuestDone AllQuests GymGuy world) && isQuestDone MealQuest GymGuy world = do
-    putStrLn "You: So, will you help me with your muscles?"
-    putStrLn "Gym Guy: Yeah, the meal was great. Take me to the place."
-    putStrLn "You and the Gym Guy went to the ventilation grid and broke it."
-    return $ debugGo Hallway world $ addItemToInventory GreatMeal $ removePersonFromLocation GymGuy Gym world $ removeObjectFromLocation VentilationGrid Hallway world $ unlock Ventilation world
-
-talk GymGuy world
-  | isQuestDone AllQuests GymGuy = do
-    putStrLn "You: Hi, I..."
-    putStrLn "Gym Guy: Don't have time for you now, get lost."
-    return world
+  isQuest1Done <- isQuestDone Quest1 OldMan world
+  isQuest2Done <- isQuestDone Quest2 OldMan world
+  areAllQuestsDone <- isQuestDone AllQuests OldMan world
+  hasCell2Key <- hasItem Cell2Key world
+  isWaitingForCigarettes <- isWaitingFor OldMan world
+  if not isWaitingForCigarettes && isQuest1Done && not isQuest2Done
+    then do
+      putStrLn "You: Okey, could you give me some advice now?"
+      putStrLn "Old Man: Alright. There is a hole in the wall by the 16th pole on a prison yard."
+      putStrLn "You: But wait, the lights are on, everything will be visible."
+      putStrLn "Old Man: I don't give free information. Bring 5 more cigarettes."
+      setWaitingFor OldMan world
+    else if not areAllQuestsDone && isQuest2Done
+      then do
+        putStrLn "You: What about the light?"
+        putStrLn "Old Man: You can break the ventilation hole in the hallway and get into the room with fuses, where you turn off the light."
+        putStrLn "You: Holy Chicken Trolley, that's my opportunity!!"
+        setBorder Hallway Ventilation world
+      else if areAllQuestsDone
+        then do
+          putStrLn "You: Hi, I..."
+          putStrLn "Old Man: Don't have time for you now, get lost."
+        else do
+          putStrLn "There is no one named Old Man here."
 
 talk GymGuy world = do
-  putStrLn "There is no one named Gym Guy here."
-  return world
-
-talk ShoweringPrisoner world
-  | not (isWaitingFor Towel world) && not (isQuestDone TowelQuest ShoweringPrisoner world) = do
-    putStrLn "Prisoner: Hey what are you looking at?!"
-    putStrLn "You: I was just.."
-    putStrLn "Prisoner: Get out now!! Or actually, wait.. Bring me a towel!"
-    putStrLn "You: Why would I?"
-    putStrLn "Prisoner: You dare to ask?!"
-    putStrLn "You: I'm not going to do this for free."
-    putStrLn "Prisoner: Fine, if you decide to help me I'll give you something in return."
-    return $ setWaitingFor ShoweringPrisoner world
-
-talk ShoweringPrisoner world
-  | not (isQuestDone AllQuests ShoweringPrisoner world) && isQuestDone TowelQuest ShoweringPrisoner world = do
-    putStrLn "You: You received your towel. What about my reward?"
-    putStrLn "Prisoner: Hmm... I don't have anything on me, but.."
-    putStrLn "You: But what?!"
-    putStrLn "Prisoner: Do you want some batteries?"
-    putStrLn "You: Why would I need batteries?"
-    putStrLn "Prisoner: I dunno, maybe to power up a Flashlight or something.."
-    putStrLn "You: Hmmm... Okay, give me those batteries!"
-    putStrLn "Prisoner: You can find them under a pillow in cell 3."
-    return $ addObjectToLocation Pillow Cell3 world $ setQuestDone AllQuests ShoweringPrisoner world
-
-talk ShoweringPrisoner world
-  | isQuestDone AllQuests ShoweringPrisoner = do
-    putStrLn "You: Hi, I..."
-    putStrLn "Prisoner: Don't have time for you now, get lost."
-    return world
+  isWaitingForMeal <- isWaitingFor GymGuy world
+  isQuest2Done <- isQuestDone Quest2 OldMan world
+  isMealQuestDone <- isQuestDone MealQuest GymGuy world
+  areAllQuestsDone <- isQuestDone AllQuests GymGuy world
+  if not isWaitingForMeal && isQuest2Done && not isMealQuestDone
+    then do
+      putStrLn "You see a strong guy that is exhausted after his training."
+      putStrLn "You: Hey! I have a case. Could I do something for you in return for a small favor?"
+      putStrLn "Gym Guy: You little man, what would you need help for?"
+      putStrLn "You: To break the ventilation hole."
+      putStrLn "Gym Guy: It's a piece of cake for me. Bring me a great meal cause I need to refill my carbs. Then I'll do the job."
+      setWaitingFor GymGuy world
+    else if not areAllQuestsDone && isMealQuestDone
+      then do
+        putStrLn "You: So, will you help me with your muscles?"
+        putStrLn "Gym Guy: Yeah, the meal was great. Take me to the place."
+        putStrLn "You and the Gym Guy went to the ventilation grid and broke it."
+        debugGo Hallway (addItemToInventory GreatMeal (removePersonFromLocation GymGuy Gym (removeObjectFromLocation VentilationGrid Hallway world))) (unlock Ventilation world)
+      else if areAllQuestsDone
+        then do
+          putStrLn "You: Hi, I..."
+          putStrLn "Gym Guy: Don't have time for you now, get lost."
+        else do
+          putStrLn "There is no one named Gym Guy here."
 
 talk ShoweringPrisoner world = do
-  putStrLn "There is no one named Showering Prisoner here."
-  return world
-
-talk Chef world
-  | not (isWaitingFor Coffee world) && not (isQuestDone CoffeeQuest Chef world) = do
-    putStrLn "You: Hi! I've heard that you're the best chef in here. Could you make me your signature meal?"
-    putStrLn "Chef: Nice words won't be enough. I'am actually pretty tired, if you could bring me some coffee then I'll cook something."
-    putStrLn "You: I should have some in my cell, I'll be in a moment."
-    return $ addItemToObject Coffee Table world $ setWaitingFor Chef world
-
-talk Chef world
-  | not (isQuestDone AllQuests Chef world) && isQuestDone CoffeeQuest Chef world = do
-    putStrLn "You: Now you're quite caffenaited, aren't you?"
-    putStrLn "Chef: Yeah, thanks. I'll cook something quickly."
-    putStrLn "After few minutes chef hands you a hot meal."
-    return $ addItemToInventory GreatMeal $ setQuestDone AllQuests Chef world
-
-talk Chef world
-  | isQuestDone AllQuests Chef = do
-    putStrLn "You: Hi, I..."
-    putStrLn "Chef: Don't have time for you now, get lost."
-    return world
+  isWaitingForTowel <- isWaitingFor ShoweringPrisoner world
+  isTowelQuestDone <- isQuestDone TowelQuest ShoweringPrisoner world
+  areAllQuestsDone <- isQuestDone AllQuests ShoweringPrisoner world
+  if not isWaitingForTowel && not isTowelQuestDone
+    then do
+      putStrLn "Prisoner: Hey what are you looking at?!"
+      putStrLn "You: I was just.."
+      putStrLn "Prisoner: Get out now!! Or actually, wait.. Bring me a towel!"
+      putStrLn "You: Why would I?"
+      putStrLn "Prisoner: You dare to ask?!"
+      putStrLn "You: I'm not going to do this for free."
+      putStrLn "Prisoner: Fine, if you decide to help me I'll give you something in return."
+      setWaitingFor ShoweringPrisoner world
+    else if not areAllQuestsDone && isTowelQuestDone
+      then do
+        putStrLn "You: You received your towel. What about my reward?"
+        putStrLn "Prisoner: Hmm... I don't have anything on me, but.."
+        putStrLn "You: But what?!"
+        putStrLn "Prisoner: Do you want some batteries?"
+        putStrLn "You: Why would I need batteries?"
+        putStrLn "Prisoner: I dunno, maybe to power up a Flashlight or something.."
+        putStrLn "You: Hmmm... Okay, give me those batteries!"
+        putStrLn "Prisoner: You can find them under a pillow in cell 3."
+        addObjectToLocation Pillow Cell3 (setQuestDone AllQuests ShoweringPrisoner world)
+      else if areAllQuestsDone
+        then do
+          putStrLn "You: Hi, I..."
+          putStrLn "Prisoner: Don't have time for you now, get lost."
+        else do
+          putStrLn "There is no one named Showering Prisoner here."
 
 talk Chef world = do
-  putStrLn "There is no one named Chef here."
-  return world
+  isWaitingForCoffee <- isWaitingFor Chef world
+  isCoffeeQuestDone <- isQuestDone CoffeeQuest Chef world
+  areAllQuestsDone <- isQuestDone AllQuests Chef world
+  if not isWaitingForCoffee && not isCoffeeQuestDone
+    then do
+      putStrLn "You: Hi! I've heard that you're the best chef in here. Could you make me your signature meal?"
+      putStrLn "Chef: Nice words won't be enough. I'am actually pretty tired, if you could bring me some coffee then I'll cook something."
+      putStrLn "You: I should have some in my cell, I'll be in a moment."
+      addItemToObject Coffee Table (setWaitingFor Chef world)
+    else if not areAllQuestsDone && isCoffeeQuestDone
+      then do
+        putStrLn "You: Now you're quite caffenaited, aren't you?"
+        putStrLn "Chef: Yeah, thanks. I'll cook something quickly."
+        putStrLn "After few minutes chef hands you a hot meal."
+        addItemToInventory GreatMeal (setQuestDone AllQuests Chef world)
+      else if areAllQuestsDone
+        then do
+          putStrLn "You: Hi, I..."
+          putStrLn "Chef: Don't have time for you now, get lost."
+        else do
+          putStrLn "There is no one named Chef here."
 
 talk person world = do
   putStrLn $ "There is no one named " ++ person ++ " here."
   return world
 
-give :: Item -> Person -> World -> IO World
+-- giving items to people
+-- giving items to people
+give :: Item -> Person -> World -> IO ()
 give Cigarette _ world = do
   putStrLn "To give someone cigarettes, type 'give Cigarettes Person.'"
-  return world
 
-give (Cigarettes count) OldMan world
-  | thereIsPersonInLocation OldMan getLocation world && count >= 5 = do
-    let newCount = count - 5
-        updatedCigarettes = Cigarettes newCount
-        quest = if not (isQuestDone Quest1 OldMan world) then Quest1 else Quest2
-    putStrLn "Old Man: Ah, you've brought the cigarettes. Good."
-    putStrLn "You hand the cigarettes to the Old Man."
-    return $ removeItem (Cigarettes count) $ addItemToInventory updatedCigarettes $
-          setQuestDone quest OldMan world
+give Cigarette OldMan world = do
+  isOldManHere <- thereIsPersonInLocation OldMan (getLocation world) world
+  hasEnoughCigarettes <- hasItemCountInInventory Cigarette 5 world
+  isQuest1Done <- isQuestDone Quest1 OldMan world
+  if isOldManHere && hasEnoughCigarettes
+    then do
+      removeItemFromInventory Cigarette 5 world
+      let quest = if not isQuest1Done then Quest1 else Quest2
+      putStrLn "Old Man: Ah, you've brought the cigarettes. Good."
+      putStrLn "You hand the cigarettes to the Old Man."
+      setQuestDone quest OldMan world
+    else do
+      putStrLn "Old Man: You don't have enough cigarettes."
 
-give (Cigarettes _) OldMan world
-  | thereIsPersonInLocation OldMan getLocation world = do
-    putStrLn "Old Man: You don't have enough cigarettes."
-    return world
+give item OldMan world = do
+  isOldManHere <- thereIsPersonInLocation OldMan (getLocation world) world
+  hasItemInInventory <- hasItem item world
+  if isOldManHere && hasItemInInventory
+    then putStrLn "Old Man: I don't want that item."
+    else pure ()
 
-give item OldMan world
-  | thereIsPersonInLocation OldMan getLocation world && item `elem` getInventory world = do
-    putStrLn "Old Man: I don't want that item."
-    return world
+give GreatMeal GymGuy world = do
+  isGymGuyHere <- thereIsPersonInLocation GymGuy (getLocation world) world
+  hasGreatMeal <- hasItem GreatMeal world
+  if isGymGuyHere && hasGreatMeal
+    then do
+      putStrLn "Gym Guy: Just on time, I'm hungry as hell."
+      putStrLn "You hand the meal to the Gym Guy."
+      removeItemFromInventory GreatMeal 1 world
+      setQuestDone MealQuest GymGuy world
+    else pure ()
 
-give (GreatMeal) GymGuy world
-  | thereIsPersonInLocation GymGuy getLocation world && GreatMeal `elem` getInventory world = do
-    putStrLn "Gym Guy: Just on time, I'm hungry as hell."
-    putStrLn "You hand the meal to the Gym Guy."
-    return $ removeItem GreatMeal $ setQuestDone MealQuest GymGuy world
+give item GymGuy world = do
+  isGymGuyHere <- thereIsPersonInLocation GymGuy (getLocation world) world
+  hasItemInInventory <- hasItem item world
+  if isGymGuyHere && hasItemInInventory
+    then putStrLn "Gym Guy: I don't want that item."
+    else pure ()
 
-give item GymGuy world
-  | thereIsPersonInLocation GymGuy getLocation world && item `elem` getInventory world = do
-    putStrLn "Gym Guy: I don't want that item."
-    return world
+give _ GymGuy world = do
+  isGymGuyHere <- thereIsPersonInLocation GymGuy (getLocation world) world
+  if isGymGuyHere
+    then putStrLn "Gym Guy: You don't have the meal."
+    else pure ()
 
-give _ GymGuy world
-  | thereIsPersonInLocation GymGuy getLocation world = do
-    putStrLn "Gym Guy: You don't have the meal."
-    return world
+give Coffee Chef world = do
+  isChefHere <- thereIsPersonInLocation Chef (getLocation world) world
+  hasCoffee <- hasItem Coffee world
+  if isChefHere && hasCoffee
+    then do
+      putStrLn "Chef: Oh, you have the coffee. I need a boost of energy."
+      putStrLn "You hand the coffee to the Chef."
+      removeItemFromInventory Coffee 1 world
+      setQuestDone CoffeeQuest Chef world
+    else pure ()
 
-give (Coffee) Chef world
-  | thereIsPersonInLocation Chef getLocation world && Coffee `elem` getInventory world = do
-    putStrLn "Chef: Oh, you have the coffee. I need a boost of energy."
-    putStrLn "You hand the coffee to the Chef."
-    return $ removeItem Coffee $ setQuestDone CoffeeQuest Chef world
+give item Chef world = do
+  isChefHere <- thereIsPersonInLocation Chef (getLocation world) world
+  hasItemInInventory <- hasItem item world
+  if isChefHere && hasItemInInventory
+    then putStrLn "Chef: I don't want that item."
+    else pure ()
 
-give item Chef world
-  | thereIsPersonInLocation Chef getLocation world && item `elem` getInventory world = do
-    putStrLn "Chef: I don't want that item."
-    return world
+give _ Chef world = do
+  isChefHere <- thereIsPersonInLocation Chef (getLocation world) world
+  if isChefHere
+    then putStrLn "Chef: You don't have the coffee."
+    else pure ()
 
-give _ Chef world
-  | thereIsPersonInLocation Chef getLocation world = do
-    putStrLn "Chef: You don't have the coffee."
-    return world
+give Towel ShoweringPrisoner world = do
+  isPrisonerHere <- thereIsPersonInLocation ShoweringPrisoner (getLocation world) world
+  hasTowel <- hasItem Towel world
+  if isPrisonerHere && hasTowel
+    then do
+      putStrLn "Prisoner: Oh, there you are. Gimmie the towel."
+      putStrLn "You hand the towel to the Showering Prisoner."
+      removeItemFromInventory Towel 1 world
+      setQuestDone TowelQuest ShoweringPrisoner world
+    else pure ()
 
-give (Towel) ShoweringPrisoner world
-  | thereIsPersonInLocation ShoweringPrisoner getLocation world && Towel `elem` getInventory world = do
-    putStrLn "Prisoner: Oh, there you are. Gimmie the towel."
-    putStrLn "You hand the towel to the Showering Prisoner."
-    return $ removeItem Towel $ setQuestDone TowelQuest ShoweringPrisoner world
+give item ShoweringPrisoner world = do
+  isPrisonerHere <- thereIsPersonInLocation ShoweringPrisoner (getLocation world) world
+  hasItemInInventory <- hasItem item world
+  if isPrisonerHere && hasItemInInventory
+    then putStrLn "Prisoner: I don't want that item."
+    else pure ()
 
-give item ShoweringPrisoner world
-  | thereIsPersonInLocation ShoweringPrisoner getLocation world && item `elem` getInventory world = do
-    putStrLn "Prisoner: I don't want that item."
-    return world
+give _ ShoweringPrisoner world = do
+  isPrisonerHere <- thereIsPersonInLocation ShoweringPrisoner (getLocation world) world
+  if isPrisonerHere
+    then putStrLn "Prisoner: You don't have the towel."
+    else pure ()
 
-give _ ShoweringPrisoner world
-  | thereIsPersonInLocation ShoweringPrisoner getLocation world = do
-    putStrLn "Prisoner: You don't have the towel."
-    return world
-
-give _ _ world = do
+give _ _ world =
   putStrLn "This person doesn't want that item."
-  return world
+
 
 -- This rule describes how to display inventory's contents and how the number of picked up cigarettes increases
 -- import Control.Monad (forM_)
-
-inventory :: World -> IO ()
-inventory world = do
-  putStrLn "You have:"
-  listItems world
-  printCigarettes world
 
 listItems :: World -> IO ()
 listItems world = do
   let items = getInventory world
   forM_ items $ \item -> putStrLn $ "* " ++ show item
 
-printCigarettes :: World -> IO ()
-printCigarettes world = do
-  let count = getCigaretteCount world
-  putStrLn $ "* " ++ show count ++ " cigarettes"
-
-increaseCigarettes :: Int -> World -> World
-increaseCigarettes n world =
-  let count = getCigaretteCount world
-      newCount = count + n
-  in setCigaretteCount newCount world
-
 
 --These rules are responsible for finishing/restarting the game
 -- import System.Exit (exitSuccess)
 
-restart :: World -> IO World
-restart _ = do
-  putStrLn "Restarting the game..."
-  makeWorld >>= start
+--restart :: World -> IO World
+--restart _ = do
+--  putStrLn "Restarting the game..."
+--  makeWorld >>= start
 
 gameOver :: IO ()
 gameOver = do
