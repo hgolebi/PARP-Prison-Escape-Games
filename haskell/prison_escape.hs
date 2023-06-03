@@ -8,6 +8,7 @@ import Control.Monad (forM_)
 import System.Exit (exitSuccess)
 import Data.List (intercalate)
 import Data.List (find)
+import Data.List (isPrefixOf)
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import Data.Maybe (listToMaybe)
@@ -62,7 +63,6 @@ initializeBorders world = do
 initialLockedLocations :: [Location]
 initialLockedLocations =
   [ Cell1
-  , Hallway
   , Ventilation
   , WayToFreedomLightsTurnedOff
   ]
@@ -139,14 +139,6 @@ initializeObjects :: World -> IO ()
 initializeObjects world = do
   let facts = map (\(object, location) -> ThereIsOL object location) objectsInRooms
   modifyIORef world (\(facts', items) -> (facts ++ facts', items))
-
-
--- W przepisanej wersji użyłem typów danych i referencji IORef, aby odzwierciedlić dynamiczne fakty gry. 
--- Funkcja newWorld tworzy nowy stan świata gry, a initializeWorld inicjalizuje go początkowymi faktami.
--- Zdefiniowałem również typy danych Location dla lokacji w grze. Funkcja borders określa, czy dwie lokacje sąsiadują ze sobą.
--- Dodatkowo, utworzyłem listę initialFacts, która zawiera początkowe fakty gry. Funkcja initializeWorld zapisuje te fakty w stanie świata.
--- Należy pamiętać, że ta wersja w Haskellu nie uwzględnia jeszcze interakcji ani logiki gry. 
--- Przepisany kod stanowi jedynie podstawę dla dalszego rozwoju gry w Haskellu.
 
 
 -- People definition
@@ -227,6 +219,17 @@ instance Eq DynamicFact where
 
 instance Show DynamicFact where
   show (At location) = "At " ++ show location
+  show (ThereIsOL obj loc) = "ThereIsOL " ++ show obj ++ " " ++ show loc
+  --show (ThereIsOL obj loc) = show obj
+  show (ThereIsIO item obj) = "ThereIsIO " ++ show item ++ " " ++ show obj
+  show (ThereIsPL person loc) = "ThereIsPL " ++ show person ++ " " ++ show loc
+  show (QuestDone item loc) = "QuestDone " ++ show item ++ " " ++ show loc
+  show (Cigarettes item) = "Cigarettes " ++ show item
+  show (Locked loc) = "Locked " ++ show loc
+  show (Distracted person) = "Distracted " ++ show person
+  show (Done quest person) = "Done " ++ show quest ++ " " ++ show person
+  show (Waiting person) = "Waiting " ++ show person
+  show (Borders loc1 loc2) = "Borders " ++ show loc1 ++ " " ++ show loc2
 
 instance Ord Item where
   compare item1 item2 = compare (show item1) (show item2)
@@ -400,14 +403,15 @@ look world = do
 listObjects :: Location -> World -> IO ()
 listObjects place world = do
   (facts, _) <- readIORef world
-  let objects = filter (\fact -> case fact of { ThereIsOL _ loc -> loc == place; _ -> False }) facts
+  let objects = [obj | ThereIsOL obj loc <- facts, loc == place]
   putStrLn $ intercalate "\n" $ map (\obj -> "* " ++ show obj) objects
 
 
 availableDestinations :: Location -> World -> IO ()
 availableDestinations place world = do
   (facts, _) <- readIORef world
-  let destinations = filter (\fact -> case fact of { At src -> src == place; _ -> False }) facts
+  --let destinations = filter (\fact -> case fact of { At src -> src == place; _ -> False }) facts
+  let destinations = [dest | Borders loc dest <- facts, loc == place]
   putStrLn $ intercalate "\n" $ map (\dest -> "-> " ++ show dest) destinations
 
 
@@ -565,8 +569,8 @@ getObjectItems object world = do
 
 
 -- Podniesienie obiektu
-take :: Item -> Object -> World -> IO()
-take Flashlight object world = do
+takeItem :: Item -> Object -> World -> IO()
+takeItem Flashlight object world = do
   currentLocation <- getLocation world
   objectExistsInLocation <- thereIsObjectInLocation object currentLocation world
   flashlightExistsInObject <- thereIsItemInObject Flashlight object world
@@ -579,7 +583,7 @@ take Flashlight object world = do
       putStrLn "Nie widzę tego tutaj."
 
 
-take PlayboyMagazine object world = do
+takeItem PlayboyMagazine object world = do
   currentLocation <- getLocation world
   objectExistsInLocation <- thereIsObjectInLocation object currentLocation world
   playboyMagazineExistsInObject <- thereIsItemInObject PlayboyMagazine object world
@@ -593,7 +597,7 @@ take PlayboyMagazine object world = do
     else do
       putStrLn "Nie widzę tego tutaj."
 
-take Towel object world = do
+takeItem Towel object world = do
   currentLocation <- getLocation world
   objectExistsInLocation <- thereIsObjectInLocation object currentLocation world
   towelExistsInObject <- thereIsItemInObject Towel object world
@@ -613,7 +617,7 @@ take Towel object world = do
         putStrLn "Nie widzę tego tutaj."
 
 
-take item object world = do
+takeItem item object world = do
   currentLocation <- getLocation world
   objectExistsInLocation <- thereIsObjectInLocation object currentLocation world
   itemExistsInObject <- thereIsItemInObject item object world
@@ -966,31 +970,82 @@ commands = do
   putStrLn ""
 
 
+extractDestination :: String -> IO (Maybe Location)
+extractDestination command = case words command of
+  ["go", destination] -> do
+    let locations = [
+          ("cell1", Cell1), ("cell2", Cell2), ("cell3", Cell3), ("hallway", Hallway), ("guardroom", GuardRoom),
+          ("kitchen", Kitchen), ("showerroom", ShowerRoom), ("gym", Gym), ("ventilation", Ventilation),
+          ("shed", Shed), ("prisonyard", PrisonYard), ("waytofreedomlightsturnedoff", WayToFreedomLightsTurnedOff)
+          ]  -- lista wszystkich lokalizacji
+    return (lookup destination locations)
+  _ -> return Nothing
+
+extractItemAndObject :: String -> IO (Maybe (Item, Object))
+extractItemAndObject command = case words command of
+  ["take", itemName, "from", objectName] -> do
+    let items = [("poop", Poop), ("coin", Coin), ("cigarette", Cigarette), ("playboymagazine", PlayboyMagazine),
+                 ("flashlight", Flashlight), ("cell1key", Cell1Key), ("cell2key", Cell2Key), ("towel", Towel),
+                 ("batteries", Batteries), ("greatmeal", GreatMeal), ("coffee", Coffee)]
+        objects = [("occupiedbed", OccupiedBed), ("smalltoilet", SmallToilet), ("teapot", Teapot),
+                   ("occupiedbed2", OccupiedBed2), ("table", Table), ("yourbed", YourBed), ("oldmansbed", OldMansBed),
+                   ("toilet", Toilet), ("bunkbed", BunkBed), ("bedcabinet", BedCabinet), ("shelf", Shelf),
+                   ("ventilationgrid", VentilationGrid), ("desk", Desk), ("tv", TV), ("coat", Coat), ("chair", Chair),
+                   ("oven", Oven), ("corner", Corner), ("fridge", Fridge), ("sink", Sink), ("shower", Shower),
+                   ("shower2", Shower2), ("shower3", Shower3), ("shower4", Shower4), ("cabinet", Cabinet),
+                   ("treadmill", Treadmill), ("treadmill2", Treadmill2), ("bench", Bench), ("fusebox", FuseBox),
+                   ("pole1", Pole1), ("pole2", Pole2), ("pole3", Pole3), ("pole4", Pole4), ("pole5", Pole5),
+                   ("pole6", Pole6), ("pole7", Pole7), ("pole8", Pole8), ("pole9", Pole9), ("pole10", Pole10),
+                   ("pole11", Pole11), ("pole12", Pole12), ("pole13", Pole13), ("pole14", Pole14), ("pole15", Pole15),
+                   ("pole16", Pole16), ("pole17", Pole17), ("pole18", Pole18), ("pole19", Pole19), ("pole20", Pole20),
+                   ("pole21", Pole21), ("pillow", Pillow)]
+    case (lookup itemName items, lookup objectName objects) of
+      (Just item, Just object) -> return (Just (item, object))
+      _ -> do
+        putStrLn "Invalid item or object"
+        return Nothing
+  _ -> return Nothing
+
+
 main :: IO ()
 main = do
-  worldRef <- newWorld  -- Inicjalizacja stanu gry
   putStrLn "Welcome to the Prison Escape Game!"
   putStrLn "You find yourself in a dark prison cell."
---  gameLoop worldRef
+  worldRef <- newWorld  -- Inicjalizacja stanu gry
+  initializeBorders worldRef
+  initializeItemLocations worldRef
+  initializeLockedLocations worldRef
+  initializeObjects worldRef
+  initializePeople worldRef
+  initializeStartingLocation worldRef
+  gameLoop worldRef
 
---gameLoop :: World -> IO ()
---gameLoop worldRef = do
---  putStrLn "\nWhat do you want to do?"
---  command <- getLine
---  executeCommand command worldRef
---  gameLoop worldRef
+gameLoop :: World -> IO ()
+gameLoop worldRef = do
+  putStrLn "\nWhat do you want to do?"
+  command <- getLine
+  executeCommand command worldRef
+  gameLoop worldRef
 
---executeCommand :: String -> World -> IO ()
---executeCommand command worldRef
---  | "look" `isPrefixOf` command = do
---      location <- getLocation worldRef
---      describeLocation location
---  | "go" `isPrefixOf` command = do
---      let destination = extractDestination command
---      movePlayerTo destination worldRef
---  | "take" `isPrefixOf` command = do
---      let item = extractItem command
---      takeItem item worldRef
+executeCommand :: String -> World -> IO ()
+executeCommand command worldRef
+  | "look" `isPrefixOf` command = do
+      --location <- getLocation worldRef
+      look worldRef
+  | "go" `isPrefixOf` command = do
+      destination <- extractDestination command
+      case destination of
+        Just location -> go location worldRef
+        Nothing -> putStrLn "Invalid destination"
+      --go destination worldRef
+  | "take" `isPrefixOf` command = do
+      itemObject <- extractItemAndObject command
+      case itemObject of
+        Just (item, object) -> do
+          takeItem item object worldRef
+        Nothing -> putStrLn "Invalid item or object"
+--  | "investigate" `isPrefixOf` command = do
+
 --  | "use" `isPrefixOf` command = do
 --      let item = extractItem command
 --      useItem item worldRef
