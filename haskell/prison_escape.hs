@@ -1,5 +1,7 @@
--- WSZYSTKO SIE KOMPILUJE, ZERO BUGOW, JAKIES TAM WARNINGI, ALE TO WARNINGI
--- ZACZALEM MAIN FUNCTION PISAC, TRZEBA JA ROZSZERZYC
+-- WSZYSTKO SIE KOMPILUJE I HASKELLOWO DZIALA POPRAWNIE, ZERO BUGOW, JAKIES TAM WARNINGI, ALE TO WARNINGI
+-- MAIN FUNCTION NAPISANY WYDAJE MI SIE ZE W CALOSCI
+-- COS JEST NIE TAK NAPISANE Z FUNKCJA/FUNKCJAMI DO INTERAKCJI Z LUDZMI BO NP. PRZY 'talk oldman' ZWRACA, ZE NIE MA TAKIEGO ZIOMKA TU
+-- WIEC TO TRZEBA POPRAWIC, MOZE COS JESZCZE SIE ZNAJDZIE
 
 
 
@@ -429,7 +431,7 @@ go location world = do
 
   case (location, currentLocation) of
     (Hallway, GuardRoom) -> do
-      if borderExists && not guardDistracted then do
+      if not borderExists && not guardDistracted then do
         putStrLn "Oh no, there is a guard!"
         putStrLn "I probably should've distracted him first."
         gameOver
@@ -954,64 +956,91 @@ finish = do
 commands :: IO ()
 commands = do
   putStrLn ""
-  putStrLn "Enter commands using standard Haskell syntax."
   putStrLn "Available commands are:"
-  putStrLn "start                 -- to start the game."
-  putStrLn "go Destination        -- to go to the selected destination."
-  putStrLn "unlock Destination    -- to unlock the passage to the destination."
-  putStrLn "look                  -- to look around you again."
-  putStrLn "investigate Object    -- to see if there is any item in the object."
-  putStrLn "take Item Object      -- to pick up an item from the object (or person)."
-  putStrLn "inventory             -- to list the items that you possess."
-  putStrLn "give Item Person      -- to give a person the item they wanted."
-  putStrLn "talk Person           -- to talk to a person."
-  putStrLn "commands              -- to see this message again."
-  putStrLn "halt                  -- to end the game and quit."
+  putStrLn "go Destination            -- to go to the selected destination."
+  putStrLn "unlock Destination        -- to unlock the passage to the destination."
+  putStrLn "look                      -- to look around you again."
+  putStrLn "investigate Object        -- to see if there is any item in the object."
+  putStrLn "take Item from Object     -- to pick up an item from the object (or person)."
+  putStrLn "inventory                 -- to list the items that you possess."
+  putStrLn "give Item to Person       -- to give a person the item they wanted."
+  putStrLn "talk Person               -- to talk to a person."
+  putStrLn "commands                  -- to see this message again."
   putStrLn ""
 
+-- dictionaries for parsing strings to data objects
+stringsToItems :: [(String, Item)]
+stringsToItems = [("poop", Poop), ("coin", Coin), ("cigarette", Cigarette), ("playboymagazine", PlayboyMagazine), ("flashlight", Flashlight),
+         ("cell1key", Cell1Key), ("cell2key", Cell2Key), ("towel", Towel), ("batteries", Batteries), ("greatmeal", GreatMeal), ("coffee", Coffee)]
 
+stringsToObjects :: [(String, Object)]
+stringsToObjects = [("occupiedbed", OccupiedBed), ("smalltoilet", SmallToilet), ("teapot", Teapot), ("occupiedbed2", OccupiedBed2),
+           ("table", Table), ("yourbed", YourBed), ("oldmansbed", OldMansBed), ("toilet", Toilet), ("bunkbed", BunkBed),
+           ("bedcabinet", BedCabinet), ("shelf", Shelf), ("ventilationgrid", VentilationGrid), ("desk", Desk), ("tv", TV),
+           ("coat", Coat), ("chair", Chair), ("oven", Oven), ("corner", Corner), ("fridge", Fridge), ("sink", Sink),
+           ("shower", Shower), ("shower2", Shower2), ("shower3", Shower3), ("shower4", Shower4), ("cabinet", Cabinet),
+           ("treadmill", Treadmill), ("treadmill2", Treadmill2), ("bench", Bench), ("fusebox", FuseBox), ("pole1", Pole1),
+           ("pole2", Pole2), ("pole3", Pole3), ("pole4", Pole4), ("pole5", Pole5), ("pole6", Pole6), ("pole7", Pole7),
+           ("pole8", Pole8), ("pole9", Pole9), ("pole10", Pole10), ("pole11", Pole11), ("pole12", Pole12), ("pole13", Pole13),
+           ("pole14", Pole14), ("pole15", Pole15), ("pole16", Pole16), ("pole17", Pole17), ("pole18", Pole18), ("pole19", Pole19),
+           ("pole20", Pole20), ("pole21", Pole21), ("pillow", Pillow)]
+
+stringsToLocations :: [(String, Location)]
+stringsToLocations = [("cell1", Cell1), ("cell2", Cell2), ("cell3", Cell3), ("hallway", Hallway), ("guardroom", GuardRoom),
+             ("kitchen", Kitchen), ("showerroom", ShowerRoom), ("gym", Gym), ("ventilation", Ventilation),
+             ("shed", Shed), ("prisonyard", PrisonYard), ("waytofreedomlightsturnedoff", WayToFreedomLightsTurnedOff)]
+
+stringsToPeople :: [(String, Person)]
+stringsToPeople = [("oldman", OldMan), ("gymguy", GymGuy), ("showeringprisoner", ShoweringPrisoner), ("chef", Chef),
+          ("sleepingguy", SleepingGuy), ("sleepingguy2", SleepingGuy2), ("guard", Guard)]
+
+
+-- functions for extracting data objects from users commands
 extractDestination :: String -> IO (Maybe Location)
 extractDestination command = case words command of
-  ["go", destination] -> do
-    let locations = [
-          ("cell1", Cell1), ("cell2", Cell2), ("cell3", Cell3), ("hallway", Hallway), ("guardroom", GuardRoom),
-          ("kitchen", Kitchen), ("showerroom", ShowerRoom), ("gym", Gym), ("ventilation", Ventilation),
-          ("shed", Shed), ("prisonyard", PrisonYard), ("waytofreedomlightsturnedoff", WayToFreedomLightsTurnedOff)
-          ]  -- lista wszystkich lokalizacji
-    return (lookup destination locations)
+  ["go", destination] -> return (lookup destination stringsToLocations)
+  _ -> return Nothing
+
+-- functions for extracting data objects from users commands
+extractLocationToUnlock :: String -> IO (Maybe Location)
+extractLocationToUnlock command = case words command of
+  ["unlock", location] -> return (lookup location stringsToLocations)
+  _ -> return Nothing
+
+extractObject :: String -> IO (Maybe Object)
+extractObject command = case words command of
+  ["investigate", object] -> return (lookup object stringsToObjects)
   _ -> return Nothing
 
 extractItemAndObject :: String -> IO (Maybe (Item, Object))
 extractItemAndObject command = case words command of
   ["take", itemName, "from", objectName] -> do
-    let items = [("poop", Poop), ("coin", Coin), ("cigarette", Cigarette), ("playboymagazine", PlayboyMagazine),
-                 ("flashlight", Flashlight), ("cell1key", Cell1Key), ("cell2key", Cell2Key), ("towel", Towel),
-                 ("batteries", Batteries), ("greatmeal", GreatMeal), ("coffee", Coffee)]
-        objects = [("occupiedbed", OccupiedBed), ("smalltoilet", SmallToilet), ("teapot", Teapot),
-                   ("occupiedbed2", OccupiedBed2), ("table", Table), ("yourbed", YourBed), ("oldmansbed", OldMansBed),
-                   ("toilet", Toilet), ("bunkbed", BunkBed), ("bedcabinet", BedCabinet), ("shelf", Shelf),
-                   ("ventilationgrid", VentilationGrid), ("desk", Desk), ("tv", TV), ("coat", Coat), ("chair", Chair),
-                   ("oven", Oven), ("corner", Corner), ("fridge", Fridge), ("sink", Sink), ("shower", Shower),
-                   ("shower2", Shower2), ("shower3", Shower3), ("shower4", Shower4), ("cabinet", Cabinet),
-                   ("treadmill", Treadmill), ("treadmill2", Treadmill2), ("bench", Bench), ("fusebox", FuseBox),
-                   ("pole1", Pole1), ("pole2", Pole2), ("pole3", Pole3), ("pole4", Pole4), ("pole5", Pole5),
-                   ("pole6", Pole6), ("pole7", Pole7), ("pole8", Pole8), ("pole9", Pole9), ("pole10", Pole10),
-                   ("pole11", Pole11), ("pole12", Pole12), ("pole13", Pole13), ("pole14", Pole14), ("pole15", Pole15),
-                   ("pole16", Pole16), ("pole17", Pole17), ("pole18", Pole18), ("pole19", Pole19), ("pole20", Pole20),
-                   ("pole21", Pole21), ("pillow", Pillow)]
-    case (lookup itemName items, lookup objectName objects) of
+    case (lookup itemName stringsToItems, lookup objectName stringsToObjects) of
       (Just item, Just object) -> return (Just (item, object))
-      _ -> do
-        putStrLn "Invalid item or object"
-        return Nothing
+      _ -> return Nothing
   _ -> return Nothing
+
+extractPersonToTalk :: String -> IO (Maybe Person)
+extractPersonToTalk command = case words command of
+  ["talk", person] -> return (lookup person stringsToPeople)
+  _ -> return Nothing
+
+extractItemAndPerson :: String -> IO (Maybe (Item, Person))
+extractItemAndPerson command = case words command of
+  ["give", itemName, "to", personName] -> do
+    case (lookup itemName stringsToItems, lookup personName stringsToPeople) of
+      (Just item, Just person) -> return (Just (item, person))
+      _ -> return Nothing
+  _ -> return Nothing
+
 
 
 main :: IO ()
 main = do
   putStrLn "Welcome to the Prison Escape Game!"
   putStrLn "You find yourself in a dark prison cell."
-  worldRef <- newWorld  -- Inicjalizacja stanu gry
+  putStrLn "Type 'commands' to see available commands"
+  worldRef <- newWorld  -- game state initialization
   initializeBorders worldRef
   initializeItemLocations worldRef
   initializeLockedLocations worldRef
@@ -1029,8 +1058,9 @@ gameLoop worldRef = do
 
 executeCommand :: String -> World -> IO ()
 executeCommand command worldRef
+  | "commands" `isPrefixOf` command = do
+    commands
   | "look" `isPrefixOf` command = do
-      --location <- getLocation worldRef
       look worldRef
   | "go" `isPrefixOf` command = do
       destination <- extractDestination command
@@ -1041,14 +1071,30 @@ executeCommand command worldRef
   | "take" `isPrefixOf` command = do
       itemObject <- extractItemAndObject command
       case itemObject of
-        Just (item, object) -> do
-          takeItem item object worldRef
+        Just (item, object) -> takeItem item object worldRef
         Nothing -> putStrLn "Invalid item or object"
---  | "investigate" `isPrefixOf` command = do
-
---  | "use" `isPrefixOf` command = do
---      let item = extractItem command
---      useItem item worldRef
---  | "give" `isPrefixOf` command = do
---     let item = extractItem command
---          person = extractPerson command
+  | "investigate" `isPrefixOf` command = do
+    investigatedObject <- extractObject command
+    case investigatedObject of
+      Just object -> investigate object worldRef
+      Nothing -> putStrLn "Invalid object"
+  | "talk" `isPrefixOf` command = do
+    chitChatPerson <- extractPersonToTalk command
+    case chitChatPerson of
+      Just person -> talk person worldRef
+      Nothing -> putStrLn "Invalid person"
+  | "inventory" `isPrefixOf` command = do
+      inventory <- getInventory worldRef
+      putStrLn "Inventory:"
+      mapM_ putStrLn (map show inventory)
+  | "unlock" `isPrefixOf` command = do
+    unlockedLocation <- extractLocationToUnlock command
+    case unlockedLocation of
+      Just location -> unlock location worldRef
+      Nothing -> putStrLn "Invalid location"
+  | "give" `isPrefixOf` command = do
+      personToGive <- extractItemAndPerson command
+      case personToGive of
+        Just (item, person) -> give item person worldRef
+        Nothing -> putStrLn "Invalid item or person"
+  | otherwise = putStrLn "Invalid command"
