@@ -1,3 +1,8 @@
+-- WSZYSTKO SIE KOMPILUJE, ZERO BUGOW, JAKIES TAM WARNINGI, ALE TO WARNINGI
+-- ZACZALEM MAIN FUNCTION PISAC, TRZEBA JA ROZSZERZYC
+
+
+
 import Data.IORef
 import Control.Monad (forM_)
 import System.Exit (exitSuccess)
