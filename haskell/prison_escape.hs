@@ -53,16 +53,19 @@ initializeBorders world = do
   let facts = map (\(location1, location2) -> Borders location1 location2) bordersInMap
   modifyIORef world (\(facts', items) -> (facts' ++ facts, items))
 
-initialFacts :: [DynamicFact]
-initialFacts =
-  [ Locked Cell1
-  , Locked Hallway
-  , Locked Ventilation
-  , Locked WayToFreedomLightsTurnedOff
+initialLockedLocations :: [Location]
+initialLockedLocations =
+  [ Cell1
+  , Hallway
+  , Ventilation
+  , WayToFreedomLightsTurnedOff
   ]
 
-initializeWorld :: World -> IO ()
-initializeWorld world = writeIORef world initialFacts
+initializeLockedLocations :: World -> IO ()
+initializeLockedLocations world = do
+  let facts = map (\fact -> Locked fact) initialLockedLocations
+  modifyIORef world (\(facts', items) -> (facts ++ facts', items))
+
 
 -- Objects in rooms definition
 data Object = OccupiedBed | SmallToilet | Teapot | OccupiedBed2 | Table | YourBed | OldMansBed | Toilet | BunkBed | BedCabinet | Shelf
@@ -199,15 +202,17 @@ startLocation :: Location
 startLocation = Cell2
 
 -- Rule: get location
---getLocation :: [DynamicFact] -> Maybe Location
---getLocation facts = listToMaybe [loc | At loc <- facts]
+getLocation :: World -> IO Location
+getLocation world = do
+  (facts, _) <- readIORef world
+  case find isAtFact facts of
+    Just (At location) -> return location
+    _ -> error "Location not found"
 
--- Rule: get location
-getLocation :: [DynamicFact] -> Location
-getLocation facts = case listToMaybe [loc | At loc <- facts] of
-  Just location -> location
-  Nothing -> error "Unable to determine current location"
-
+isAtFact :: DynamicFact -> Bool
+isAtFact fact = case fact of
+  At _ -> True
+  _ -> False
 
 -- Rule: check if location is locked
 isLocked :: Location -> World -> IO Bool
@@ -346,8 +351,7 @@ doesBorder location1 location2 world = do
 -- Rule: Look
 look :: World -> IO ()
 look world = do
-  (facts, items) <- readIORef world
-  let currentLocation = getLocation facts
+  currentLocation <- getLocation world
   putStrLn $ "You're currently at " ++ show currentLocation
   putStrLn "You can see:"
   listObjects currentLocation world
@@ -373,7 +377,7 @@ availableDestinations place world = do
 go :: Location -> World -> IO ()
 go location world = do
   (facts, items) <- readIORef world
-  let currentLocation = getLocation facts
+  currentLocation <- getLocation world
   flashlightHeld <- hasItem Flashlight world
   batteriesHeld <- hasItem Batteries world
   borderExists <- doesBorder location currentLocation world
@@ -435,11 +439,10 @@ unlockLocation location world = do
 
 unlock :: Location -> World -> IO ()
 unlock location world = do
-  (facts, items) <- readIORef world
   locationLocked <- isLocked location world
   hasCell1Key <- hasItem Cell1Key world
   hasCell2Key <- hasItem Cell2Key world
-  let currentLocation = getLocation facts
+  currentLocation <- getLocation world
   case (currentLocation, location) of
     (place, _) | not locationLocked -> putStrLn "To miejsce jest już odblokowane."
     (hallway, Cell1) | locationLocked && hasCell1Key -> do
@@ -457,9 +460,8 @@ unlock location world = do
 -- Ucieczka z więzienia
 escape :: World -> IO ()
 escape world = do
-  (facts, items) <- readIORef world
   escapeLocked <- isLocked WayToFreedomLightsTurnedOff world
-  let currentLocation = getLocation facts
+  currentLocation <- getLocation world
   case currentLocation of
     PrisonYard | not escapeLocked -> do
       putStrLn "Było całkowicie ciemno i udało ci się uciec z więzienia!"
@@ -474,8 +476,7 @@ escape world = do
 -- Wyłączanie bezpieczników
 blowFuses :: World -> IO ()
 blowFuses world = do
-  (facts, items) <- readIORef world
-  let currentLocation = getLocation facts
+  currentLocation <- getLocation world
   if currentLocation == Shed
     then do
       unlockLocation WayToFreedomLightsTurnedOff world
@@ -487,24 +488,21 @@ blowFuses world = do
 -- Badanie obiektów
 investigate :: Object -> World -> IO ()
 investigate old_man world = do
-  (facts, _) <- readIORef world
-  let currentLocation = getLocation facts
+  currentLocation <- getLocation world
   if currentLocation == Cell2
     then putStrLn "Stary człowiek: Ty brudny szczurze, trzymaj ręce przy sobie!!"
     else putStrLn "Nic do odkrycia tutaj."
   putStrLn ""
 
 investigate pole16 world = do
-  (facts, _) <- readIORef world
-  let currentLocation = getLocation facts
+  currentLocation <- getLocation world
   if currentLocation == PrisonYard
     then putStrLn "Obok słupa 16 jest dziura w murze. Wpisz 'escape.' aby uciec z więzienia."
     else putStrLn "Nic do odkrycia tutaj."
   putStrLn ""
 
 investigate fuse_box world = do
-  (facts, _) <- readIORef world
-  let currentLocation = getLocation facts
+  currentLocation <- getLocation world
   if currentLocation == Shed
     then putStrLn "Wewnątrz skrzynki z bezpiecznikami znajdują się przełączniki do wyłączania światła. Wpisz 'blow_fuses.' aby odciąć zasilanie."
     else putStrLn "Nic do odkrycia tutaj."
@@ -531,8 +529,7 @@ getObjectItems object world = do
 -- Podniesienie obiektu
 take :: Item -> Object -> World -> IO()
 take Flashlight object world = do
-  (facts, _) <- readIORef world
-  let currentLocation = getLocation facts
+  currentLocation <- getLocation world
   objectExistsInLocation <- thereIsObjectInLocation object currentLocation world
   flashlightExistsInObject <- thereIsItemInObject Flashlight object world
   if objectExistsInLocation && flashlightExistsInObject
@@ -545,8 +542,7 @@ take Flashlight object world = do
 
 
 take PlayboyMagazine object world = do
-  (facts, _) <- readIORef world
-  let currentLocation = getLocation facts
+  currentLocation <- getLocation world
   objectExistsInLocation <- thereIsObjectInLocation object currentLocation world
   playboyMagazineExistsInObject <- thereIsItemInObject PlayboyMagazine object world
   if objectExistsInLocation && playboyMagazineExistsInObject
@@ -560,8 +556,7 @@ take PlayboyMagazine object world = do
       putStrLn "Nie widzę tego tutaj."
 
 take Towel object world = do
-  (facts, _) <- readIORef world
-  let currentLocation = getLocation facts
+  currentLocation <- getLocation world
   objectExistsInLocation <- thereIsObjectInLocation object currentLocation world
   towelExistsInObject <- thereIsItemInObject Towel object world
   personExistsInLocation <- thereIsPersonInLocation GymGuy Gym world
@@ -581,8 +576,7 @@ take Towel object world = do
 
 
 take item object world = do
-  (facts, _) <- readIORef world
-  let currentLocation = getLocation facts
+  currentLocation <- getLocation world
   objectExistsInLocation <- thereIsObjectInLocation object currentLocation world
   itemExistsInObject <- thereIsItemInObject item object world
   if objectExistsInLocation && itemExistsInObject
@@ -606,9 +600,8 @@ removeItemFact item object facts =
 -- Odkładanie obiektu
 leave :: Item -> Location -> World -> IO ()
 leave PlayboyMagazine GuardRoom world = do
-  (facts, items) <- readIORef world
   magazineHeld <- hasItem PlayboyMagazine world
-  let currentLocation = getLocation facts
+  currentLocation <- getLocation world
   if magazineHeld && currentLocation == Hallway
     then do
       removeItemFromInventory PlayboyMagazine 1 world
@@ -618,10 +611,8 @@ leave PlayboyMagazine GuardRoom world = do
       putStrLn "Prawdopodobnie nie powinienem zostawiać tego tam."
 
 leave PlayboyMagazine destination world = do
-  (facts, _) <- readIORef world
-  let currentLocation = getLocation facts
+  currentLocation <- getLocation world
   doesLocationsBorder <- doesBorder destination currentLocation world
-  let currentLocation = getLocation facts
   if currentLocation /= destination || not doesLocationsBorder
     then putStrLn "Jesteś zbyt daleko."
     else putStrLn "Nie masz tego przedmiotu."
@@ -703,7 +694,11 @@ talk GymGuy world = do
         putStrLn "You: So, will you help me with your muscles?"
         putStrLn "Gym Guy: Yeah, the meal was great. Take me to the place."
         putStrLn "You and the Gym Guy went to the ventilation grid and broke it."
-        debugGo Hallway (addItemToInventory GreatMeal (removePersonFromLocation GymGuy Gym (removeObjectFromLocation VentilationGrid Hallway world))) (unlock Ventilation world)
+        debugGo Hallway world
+        addItemToInventory GreatMeal world
+        removePersonFromLocation GymGuy Gym world
+        removeObjectFromLocation VentilationGrid Hallway world
+        unlock Ventilation world
       else if areAllQuestsDone
         then do
           putStrLn "You: Hi, I..."
@@ -735,7 +730,8 @@ talk ShoweringPrisoner world = do
         putStrLn "Prisoner: I dunno, maybe to power up a Flashlight or something.."
         putStrLn "You: Hmmm... Okay, give me those batteries!"
         putStrLn "Prisoner: You can find them under a pillow in cell 3."
-        addObjectToLocation Pillow Cell3 (setQuestDone AllQuests ShoweringPrisoner world)
+        addObjectToLocation Pillow Cell3 world
+        setQuestDone AllQuests ShoweringPrisoner world
       else if areAllQuestsDone
         then do
           putStrLn "You: Hi, I..."
@@ -752,13 +748,15 @@ talk Chef world = do
       putStrLn "You: Hi! I've heard that you're the best chef in here. Could you make me your signature meal?"
       putStrLn "Chef: Nice words won't be enough. I'am actually pretty tired, if you could bring me some coffee then I'll cook something."
       putStrLn "You: I should have some in my cell, I'll be in a moment."
-      addItemToObject Coffee Table (setWaitingFor Chef world)
+      addItemToObject Coffee Table world
+      setWaitingFor Chef world
     else if not areAllQuestsDone && isCoffeeQuestDone
       then do
         putStrLn "You: Now you're quite caffenaited, aren't you?"
         putStrLn "Chef: Yeah, thanks. I'll cook something quickly."
         putStrLn "After few minutes chef hands you a hot meal."
-        addItemToInventory GreatMeal (setQuestDone AllQuests Chef world)
+        addItemToInventory GreatMeal world
+        setQuestDone AllQuests Chef world
       else if areAllQuestsDone
         then do
           putStrLn "You: Hi, I..."
@@ -767,7 +765,7 @@ talk Chef world = do
           putStrLn "There is no one named Chef here."
 
 talk person world = do
-  putStrLn $ "There is no one named " ++ person ++ " here."
+  putStrLn $ "There is no one named " ++ show person ++ " here."
   return world
 
 -- giving items to people
@@ -777,7 +775,8 @@ give Cigarette _ world = do
   putStrLn "To give someone cigarettes, type 'give Cigarettes Person.'"
 
 give Cigarette OldMan world = do
-  isOldManHere <- thereIsPersonInLocation OldMan (getLocation world) world
+  currentLocation <- getLocation world
+  isOldManHere <- thereIsPersonInLocation OldMan currentLocation world
   hasEnoughCigarettes <- hasItemCountInInventory Cigarette 5 world
   isQuest1Done <- isQuestDone Quest1 OldMan world
   if isOldManHere && hasEnoughCigarettes
@@ -791,14 +790,16 @@ give Cigarette OldMan world = do
       putStrLn "Old Man: You don't have enough cigarettes."
 
 give item OldMan world = do
-  isOldManHere <- thereIsPersonInLocation OldMan (getLocation world) world
+  currentLocation <- getLocation world
+  isOldManHere <- thereIsPersonInLocation OldMan currentLocation world
   hasItemInInventory <- hasItem item world
   if isOldManHere && hasItemInInventory
     then putStrLn "Old Man: I don't want that item."
     else pure ()
 
 give GreatMeal GymGuy world = do
-  isGymGuyHere <- thereIsPersonInLocation GymGuy (getLocation world) world
+  currentLocation <- getLocation world
+  isGymGuyHere <- thereIsPersonInLocation GymGuy currentLocation world
   hasGreatMeal <- hasItem GreatMeal world
   if isGymGuyHere && hasGreatMeal
     then do
@@ -809,20 +810,23 @@ give GreatMeal GymGuy world = do
     else pure ()
 
 give item GymGuy world = do
-  isGymGuyHere <- thereIsPersonInLocation GymGuy (getLocation world) world
+  currentLocation <- getLocation world
+  isGymGuyHere <- thereIsPersonInLocation GymGuy currentLocation world
   hasItemInInventory <- hasItem item world
   if isGymGuyHere && hasItemInInventory
     then putStrLn "Gym Guy: I don't want that item."
     else pure ()
 
 give _ GymGuy world = do
-  isGymGuyHere <- thereIsPersonInLocation GymGuy (getLocation world) world
+  currentLocation <- getLocation world
+  isGymGuyHere <- thereIsPersonInLocation GymGuy currentLocation world
   if isGymGuyHere
     then putStrLn "Gym Guy: You don't have the meal."
     else pure ()
 
 give Coffee Chef world = do
-  isChefHere <- thereIsPersonInLocation Chef (getLocation world) world
+  currentLocation <- getLocation world
+  isChefHere <- thereIsPersonInLocation Chef currentLocation world
   hasCoffee <- hasItem Coffee world
   if isChefHere && hasCoffee
     then do
@@ -833,20 +837,23 @@ give Coffee Chef world = do
     else pure ()
 
 give item Chef world = do
-  isChefHere <- thereIsPersonInLocation Chef (getLocation world) world
+  currentLocation <- getLocation world
+  isChefHere <- thereIsPersonInLocation Chef currentLocation world
   hasItemInInventory <- hasItem item world
   if isChefHere && hasItemInInventory
     then putStrLn "Chef: I don't want that item."
     else pure ()
 
 give _ Chef world = do
-  isChefHere <- thereIsPersonInLocation Chef (getLocation world) world
+  currentLocation <- getLocation world
+  isChefHere <- thereIsPersonInLocation Chef currentLocation world
   if isChefHere
     then putStrLn "Chef: You don't have the coffee."
     else pure ()
 
 give Towel ShoweringPrisoner world = do
-  isPrisonerHere <- thereIsPersonInLocation ShoweringPrisoner (getLocation world) world
+  currentLocation <- getLocation world
+  isPrisonerHere <- thereIsPersonInLocation ShoweringPrisoner currentLocation world
   hasTowel <- hasItem Towel world
   if isPrisonerHere && hasTowel
     then do
@@ -857,14 +864,16 @@ give Towel ShoweringPrisoner world = do
     else pure ()
 
 give item ShoweringPrisoner world = do
-  isPrisonerHere <- thereIsPersonInLocation ShoweringPrisoner (getLocation world) world
+  currentLocation <- getLocation world
+  isPrisonerHere <- thereIsPersonInLocation ShoweringPrisoner currentLocation world
   hasItemInInventory <- hasItem item world
   if isPrisonerHere && hasItemInInventory
     then putStrLn "Prisoner: I don't want that item."
     else pure ()
 
 give _ ShoweringPrisoner world = do
-  isPrisonerHere <- thereIsPersonInLocation ShoweringPrisoner (getLocation world) world
+  currentLocation <- getLocation world
+  isPrisonerHere <- thereIsPersonInLocation ShoweringPrisoner currentLocation world
   if isPrisonerHere
     then putStrLn "Prisoner: You don't have the towel."
     else pure ()
