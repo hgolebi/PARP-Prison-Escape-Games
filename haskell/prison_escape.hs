@@ -3,7 +3,7 @@ import Control.Monad (forM_)
 import System.Exit (exitSuccess)
 import Data.List (intercalate)
 import Data.List (find)
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import Data.Maybe (listToMaybe)
 
@@ -17,10 +17,11 @@ data DynamicFact = At Location | ThereIsOL Object Location | ThereIsIO Item Obje
 type World = IORef ([DynamicFact], M.Map Item Int)  -- contains facts and map of items and their quantity (inventory)
 
 newWorld :: IO World
-newWorld = newIORef []
+newWorld = newIORef ([], M.empty)
 
 -- Quests definition
 data Quest = Quest1 | Quest2 | AllQuests | MealQuest | TowelQuest | CoffeeQuest
+  deriving (Eq, Show)
 
 -- Map definition
 data Location = Cell1 | Cell2 | Cell3 | Hallway | GuardRoom | Kitchen | ShowerRoom | Gym | Ventilation
@@ -198,8 +199,33 @@ initializeItemLocations world = do
   modifyIORef world (\(facts', items) -> (facts ++ facts', items))
 
 -- Starting in cell2
-startLocation :: Location
-startLocation = Cell2
+initializeStartingLocation :: World -> IO ()
+initializeStartingLocation world = do
+  (facts, items) <- readIORef world
+  let newFacts = (At Cell2) : facts
+  writeIORef world (newFacts, items)
+
+
+instance Eq DynamicFact where
+  (At loc1) == (At loc2) = loc1 == loc2
+  (ThereIsOL obj1 loc1) == (ThereIsOL obj2 loc2) = obj1 == obj2 && loc1 == loc2
+  (ThereIsIO item1 obj1) == (ThereIsIO item2 obj2) = item1 == item2 && obj1 == obj2
+  (ThereIsPL person1 loc1) == (ThereIsPL person2 loc2) = person1 == person2 && loc1 == loc2
+  (QuestDone item1 loc1) == (QuestDone item2 loc2) = item1 == item2 && loc1 == loc2
+  (Cigarettes item1) == (Cigarettes item2) = item1 == item2
+  (Locked loc1) == (Locked loc2) = loc1 == loc2
+  (Distracted person1) == (Distracted person2) = person1 == person2
+  (Done quest1 person1) == (Done quest2 person2) = quest1 == quest2 && person1 == person2
+  (Waiting person1) == (Waiting person2) = person1 == person2
+  (Borders loc1 loc2) == (Borders loc3 loc4) = (loc1 == loc3 && loc2 == loc4) || (loc1 == loc4 && loc2 == loc3)
+  _ == _ = False
+
+instance Show DynamicFact where
+  show (At location) = "At " ++ show location
+
+instance Ord Item where
+  compare item1 item2 = compare (show item1) (show item2)
+
 
 -- Rule: get location
 getLocation :: World -> IO Location
@@ -275,10 +301,18 @@ hasItemCountInInventory item count world = do
     Nothing -> return False
 
 -- getting item count from inventory
-getItemCount :: Item -> World -> IO (Maybe Int)
+--getItemCount :: Item -> World -> IO (Maybe Int)
+--getItemCount item world = do
+--  (_, items) <- readIORef world
+--  return (M.lookup item items)
+
+getItemCount :: Item -> World -> IO Int
 getItemCount item world = do
   (_, items) <- readIORef world
-  return (M.lookup item items)
+  return $ case M.findWithDefault 0 item items of
+    count -> count
+
+
 
 -- adding object to location
 addObjectToLocation :: Object -> Location -> World -> IO ()
@@ -345,7 +379,6 @@ doesBorder :: Location -> Location -> World -> IO Bool
 doesBorder location1 location2 world = do
   (facts, _) <- readIORef world
   return $ (Borders location1 location2) `elem` facts
-
 
 
 -- Rule: Look
@@ -466,10 +499,10 @@ escape world = do
     PrisonYard | not escapeLocked -> do
       putStrLn "Było całkowicie ciemno i udało ci się uciec z więzienia!"
       putStrLn "Gratulacje, wygrałeś grę!"
-      finish world
+      finish
     PrisonYard | escapeLocked -> do
       putStrLn "Wszyscy strażnicy zobaczyli twoje ruchy, gdy światła zostały włączone."
-      gameOver world
+      gameOver
     _ -> putStrLn "Ha ha ha, nie tak szybko... ucieczka nie będzie taka łatwa."
   putStrLn ""
 
@@ -589,13 +622,20 @@ take item object world = do
 
 
 -- Usuwa przedmiot z obiektu
+
+
 removeItemFromObject :: Item -> Object -> World -> IO ()
 removeItemFromObject item object world = do
-  modifyIORef world (\(facts, items) -> (removeItemFact item object facts, M.delete item items))
+  modifyIORef world (\(facts, items) -> (removeItemFact item object facts, removeFromItems item items))
+
+removeFromItems :: Item -> M.Map Item Int -> M.Map Item Int
+removeFromItems item items = M.filterWithKey (\k _ -> k /= item) items
 
 removeItemFact :: Item -> Object -> [DynamicFact] -> [DynamicFact]
 removeItemFact item object facts =
   filter (\fact -> case fact of { ThereIsIO i o -> i /= item || o /= object; _ -> True }) facts
+
+
 
 -- Odkładanie obiektu
 leave :: Item -> Location -> World -> IO ()
@@ -766,7 +806,6 @@ talk Chef world = do
 
 talk person world = do
   putStrLn $ "There is no one named " ++ show person ++ " here."
-  return world
 
 -- giving items to people
 -- giving items to people
@@ -887,22 +926,16 @@ give _ _ world =
 
 listItems :: World -> IO ()
 listItems world = do
-  let items = getInventory world
+  items <- getInventory world
   forM_ items $ \item -> putStrLn $ "* " ++ show item
 
 
---These rules are responsible for finishing/restarting the game
--- import System.Exit (exitSuccess)
-
---restart :: World -> IO World
---restart _ = do
---  putStrLn "Restarting the game..."
---  makeWorld >>= start
+--These rules are responsible for finishing the game
 
 gameOver :: IO ()
 gameOver = do
   putStrLn "YOU GOT CAUGHT!"
-  putStrLn "Type 'restart' to start over again"
+  putStrLn "Maybe try your luck again from the beginning."
 
 finish :: IO ()
 finish = do
@@ -924,6 +957,38 @@ commands = do
   putStrLn "give Item Person      -- to give a person the item they wanted."
   putStrLn "talk Person           -- to talk to a person."
   putStrLn "commands              -- to see this message again."
-  putStrLn "restart               -- to restart the game."
   putStrLn "halt                  -- to end the game and quit."
   putStrLn ""
+
+
+main :: IO ()
+main = do
+  worldRef <- newWorld  -- Inicjalizacja stanu gry
+  putStrLn "Welcome to the Prison Escape Game!"
+  putStrLn "You find yourself in a dark prison cell."
+--  gameLoop worldRef
+
+--gameLoop :: World -> IO ()
+--gameLoop worldRef = do
+--  putStrLn "\nWhat do you want to do?"
+--  command <- getLine
+--  executeCommand command worldRef
+--  gameLoop worldRef
+
+--executeCommand :: String -> World -> IO ()
+--executeCommand command worldRef
+--  | "look" `isPrefixOf` command = do
+--      location <- getLocation worldRef
+--      describeLocation location
+--  | "go" `isPrefixOf` command = do
+--      let destination = extractDestination command
+--      movePlayerTo destination worldRef
+--  | "take" `isPrefixOf` command = do
+--      let item = extractItem command
+--      takeItem item worldRef
+--  | "use" `isPrefixOf` command = do
+--      let item = extractItem command
+--      useItem item worldRef
+--  | "give" `isPrefixOf` command = do
+--     let item = extractItem command
+--          person = extractPerson command
