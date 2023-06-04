@@ -1,7 +1,7 @@
 -- WSZYSTKO SIE KOMPILUJE I HASKELLOWO DZIALA POPRAWNIE, ZERO BUGOW, JAKIES TAM WARNINGI, ALE TO WARNINGI
 -- MAIN FUNCTION NAPISANY WYDAJE MI SIE ZE W CALOSCI
--- COS JEST NIE TAK NAPISANE Z FUNKCJA/FUNKCJAMI DO INTERAKCJI Z LUDZMI BO NP. PRZY 'talk oldman' ZWRACA, ZE NIE MA TAKIEGO ZIOMKA TU
--- WIEC TO TRZEBA POPRAWIC, MOZE COS JESZCZE SIE ZNAJDZIE
+-- ROZMAWIANIE Z LUDZMI NAPRAWIONE CHYBA
+-- NIE PRZEGRYWA SIE PRZY WEJSCIU DO GUARDROOM BEZ ROZPROSZENIA - NAPRAWIC
 
 
 
@@ -707,25 +707,42 @@ talk OldMan world = do
   areAllQuestsDone <- isQuestDone AllQuests OldMan world
   hasCell2Key <- hasItem Cell2Key world
   isWaitingForCigarettes <- isWaitingFor OldMan world
-  if not isWaitingForCigarettes && isQuest1Done && not isQuest2Done
+  if not isQuest1Done && not hasCell2Key
     then do
-      putStrLn "You: Okey, could you give me some advice now?"
-      putStrLn "Old Man: Alright. There is a hole in the wall by the 16th pole on a prison yard."
-      putStrLn "You: But wait, the lights are on, everything will be visible."
-      putStrLn "Old Man: I don't give free information. Bring 5 more cigarettes."
-      setWaitingFor OldMan world
-    else if not areAllQuestsDone && isQuest2Done
+      putStrLn "You: Psst... I was thinking about escape. Are you in?"
+      putStrLn "Old Man: Escape, huh? It won't be easy. I've been here for years and I'm too old for this."
+      putStrLn "You: Damn... But you probably know this prison quite well. Do you have any advice?"
+      putStrLn "Old Man: Yes, but it will cost. Please bring me 5 cigarettes and we will talk."
+      putStrLn "You: I don't have that much.."
+      putStrLn "Old Man: Here, take that key. Maybe you will find some outside."
+      putStrLn "You: Wait, you had a key to our cell all this time?!"
+      putStrLn "Old Man: Maybe I had, maybe I didn't. That's not important now. Just take the key and find me some ciggaretes."
+      putStrLn "You received cell2_key."
+      addItemToInventory Cell2Key world
+    else if not isWaitingForCigarettes && isQuest1Done && not isQuest2Done
       then do
-        putStrLn "You: What about the light?"
-        putStrLn "Old Man: You can break the ventilation hole in the hallway and get into the room with fuses, where you turn off the light."
-        putStrLn "You: Holy Chicken Trolley, that's my opportunity!!"
-        setBorder Hallway Ventilation world
-      else if areAllQuestsDone
+        putStrLn "You: Okey, could you give me some advice now?"
+        putStrLn "Old Man: Alright. There is a hole in the wall by the 16th pole on a prison yard."
+        putStrLn "You: But wait, the lights are on, everything will be visible."
+        putStrLn "Old Man: I don't give free information. Bring 5 more cigarettes."
+        setWaitingFor OldMan world
+      else if not areAllQuestsDone && isQuest2Done
         then do
-          putStrLn "You: Hi, I..."
-          putStrLn "Old Man: Don't have time for you now, get lost."
-        else do
-          putStrLn "There is no one named Old Man here."
+          putStrLn "You: What about the light?"
+          putStrLn "Old Man: You can break the ventilation hole in the hallway and get into the room with fuses, where you turn off the light."
+          putStrLn "You: Holy Chicken Trolley, that's my opportunity!!"
+          setBorder Hallway Ventilation world
+          setQuestDone AllQuests OldMan world
+        else if areAllQuestsDone
+          then do
+            putStrLn "You: Hi, I..."
+            putStrLn "Old Man: Don't have time for you now, get lost."
+          else if not isQuest1Done || not isQuest2Done
+            then do
+              putStrLn "You: Hi, I..."
+              putStrLn "Old Man: Bring me my cigarettes..."
+            else do
+              putStrLn "There is no one named Old Man here."
 
 talk GymGuy world = do
   isWaitingForMeal <- isWaitingFor GymGuy world
@@ -750,12 +767,17 @@ talk GymGuy world = do
         removePersonFromLocation GymGuy Gym world
         removeObjectFromLocation VentilationGrid Hallway world
         unlock Ventilation world
+        setQuestDone AllQuests GymGuy world
       else if areAllQuestsDone
         then do
           putStrLn "You: Hi, I..."
           putStrLn "Gym Guy: Don't have time for you now, get lost."
-        else do
-          putStrLn "There is no one named Gym Guy here."
+        else if not isMealQuestDone
+            then do
+              putStrLn "You: Hi, I..."
+              putStrLn "Old Man: Bring me my meal..."
+          else do
+            putStrLn "There is no one named Gym Guy here."
 
 talk ShoweringPrisoner world = do
   isWaitingForTowel <- isWaitingFor ShoweringPrisoner world
@@ -787,8 +809,12 @@ talk ShoweringPrisoner world = do
         then do
           putStrLn "You: Hi, I..."
           putStrLn "Prisoner: Don't have time for you now, get lost."
-        else do
-          putStrLn "There is no one named Showering Prisoner here."
+        else if not isTowelQuestDone
+            then do
+              putStrLn "You: Hi, I..."
+              putStrLn "Old Man: Bring me my towel..."
+          else do
+            putStrLn "There is no one named Showering Prisoner here."
 
 talk Chef world = do
   isWaitingForCoffee <- isWaitingFor Chef world
@@ -812,8 +838,12 @@ talk Chef world = do
         then do
           putStrLn "You: Hi, I..."
           putStrLn "Chef: Don't have time for you now, get lost."
-        else do
-          putStrLn "There is no one named Chef here."
+        else if not isCoffeeQuestDone
+            then do
+              putStrLn "You: Hi, I..."
+              putStrLn "Old Man: Bring me my coffee..."
+          else do
+            putStrLn "There is no one named Chef here."
 
 talk person world = do
   putStrLn $ "There is no one named " ++ show person ++ " here."
