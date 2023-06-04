@@ -1,7 +1,7 @@
 -- WSZYSTKO SIE KOMPILUJE I HASKELLOWO DZIALA POPRAWNIE, ZERO BUGOW, JAKIES TAM WARNINGI, ALE TO WARNINGI
 -- MAIN FUNCTION NAPISANY WYDAJE MI SIE ZE W CALOSCI
 -- ROZMAWIANIE Z LUDZMI NAPRAWIONE CHYBA
--- NIE PRZEGRYWA SIE PRZY WEJSCIU DO GUARDROOM BEZ ROZPROSZENIA - NAPRAWIC
+-- LICZNIK PRZEDMIOTOW W INVENTORY SIE NIE ZWIEKSZA, CIGARETTE CIAGLE JEST NA 1
 
 
 
@@ -280,12 +280,21 @@ hasItem item world = do
 -- addItemToInventory item world = modifyIORef world (\(facts, items) -> (facts, item : items))
 
 -- Dodawanie przedmiotu do mapy z licznikiem
-addItemToInventory :: Item -> World -> IO ()
-addItemToInventory item world = modifyIORef world (\(facts, items) -> (facts, incrementItem item items))
+--addItemToInventory :: Item -> World -> IO ()
+--addItemToInventory item world = modifyIORef world (\(facts, items) -> (facts, incrementItem item items))
 
 -- Zwiększanie liczby przedmiotów w mapie
-incrementItem :: Item -> M.Map Item Int -> M.Map Item Int
-incrementItem item items = M.insertWith (+) item 1 items
+--incrementItem :: Item -> M.Map Item Int -> M.Map Item Int
+--incrementItem item items = M.insertWith (+) item 1 items
+
+
+addItemToInventory :: Item -> World -> IO ()
+addItemToInventory item world = do
+  (facts, inventory) <- readIORef world
+  let updatedInventory = M.insert item (M.findWithDefault 0 item inventory + 1) inventory
+  writeIORef world (facts, updatedInventory)
+
+
 
 
 -- removing item from inventory
@@ -429,9 +438,9 @@ go location world = do
   let guardDistracted = Distracted Guard `elem` facts
       newFacts = filter (\fact -> case fact of { At _ -> False; _ -> True }) facts ++ [At location]
 
-  case (location, currentLocation) of
+  case (currentLocation, location) of
     (Hallway, GuardRoom) -> do
-      if not borderExists && not guardDistracted then do
+      if borderExists && not guardDistracted then do
         putStrLn "Oh no, there is a guard!"
         putStrLn "I probably should've distracted him first."
         gameOver
@@ -531,35 +540,27 @@ blowFuses world = do
 
 -- Badanie obiektów
 investigate :: Object -> World -> IO ()
-investigate old_man world = do
-  currentLocation <- getLocation world
-  if currentLocation == Cell2
-    then putStrLn "Stary człowiek: Ty brudny szczurze, trzymaj ręce przy sobie!!"
-    else putStrLn "Nic do odkrycia tutaj."
-  putStrLn ""
-
-investigate pole16 world = do
+investigate Pole16 world = do
   currentLocation <- getLocation world
   if currentLocation == PrisonYard
-    then putStrLn "Obok słupa 16 jest dziura w murze. Wpisz 'escape.' aby uciec z więzienia."
-    else putStrLn "Nic do odkrycia tutaj."
+    then putStrLn "There is a hole in the wall just next to pole16. You can try to escape (type 'escape')."
+    else putStrLn "Nothing to be found here."
   putStrLn ""
 
-investigate fuse_box world = do
+investigate FuseBox world = do
   currentLocation <- getLocation world
   if currentLocation == Shed
-    then putStrLn "Wewnątrz skrzynki z bezpiecznikami znajdują się przełączniki do wyłączania światła. Wpisz 'blow_fuses.' aby odciąć zasilanie."
-    else putStrLn "Nic do odkrycia tutaj."
+    then putStrLn "Inside the fuse box are switchers to cut off the light. You can try doing this (type 'blow_fuses')."
+    else putStrLn "Nothing to be found here."
   putStrLn ""
 
 investigate object world = do
   objectItems <- getObjectItems object world
-  case objectItems of
-    [] -> putStrLn "Nic do odkrycia tutaj."
-    _ -> do
-      putStrLn $ "W " ++ show object ++ " znajdujesz:"
+  if null objectItems
+    then putStrLn "Nothing to be found here."
+    else do
+      putStrLn $ "In " ++ show object ++ " you can see:"
       mapM_ (\item -> putStrLn $ "* " ++ show item) objectItems
-  putStrLn ""
 
 
 -- Zwraca listę przedmiotów znajdujących się w danym obiekcie
@@ -849,7 +850,6 @@ talk person world = do
   putStrLn $ "There is no one named " ++ show person ++ " here."
 
 -- giving items to people
--- giving items to people
 give :: Item -> Person -> World -> IO ()
 give Cigarette _ world = do
   putStrLn "To give someone cigarettes, type 'give Cigarettes Person.'"
@@ -1063,6 +1063,12 @@ extractItemAndPerson command = case words command of
       _ -> return Nothing
   _ -> return Nothing
 
+-- prints all facts that are curenntly in world's facts (for debugging)
+printFacts :: World -> IO ()
+printFacts worldRef = do
+  (facts, _) <- readIORef worldRef
+  putStrLn "Facts:"
+  mapM_ print facts
 
 
 main :: IO ()
@@ -1077,6 +1083,7 @@ main = do
   initializeObjects worldRef
   initializePeople worldRef
   initializeStartingLocation worldRef
+  printFacts worldRef
   gameLoop worldRef
 
 gameLoop :: World -> IO ()
@@ -1114,7 +1121,7 @@ executeCommand command worldRef
       Just person -> talk person worldRef
       Nothing -> putStrLn "Invalid person"
   | "inventory" `isPrefixOf` command = do
-      inventory <- getInventory worldRef
+      inventory <- getInventoryItemCounts worldRef
       putStrLn "Inventory:"
       mapM_ putStrLn (map show inventory)
   | "unlock" `isPrefixOf` command = do
